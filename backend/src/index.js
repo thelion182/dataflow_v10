@@ -24,9 +24,17 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+// Acepta cualquier origen localhost (cualquier puerto) y la IP de red local
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (Postman, curl, SSR)
+    if (!origin) return callback(null, true);
+    // Permitir localhost en cualquier puerto
+    if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return callback(null, true);
+    // Permitir IPs de red local (192.168.x.x, 10.x.x.x, 172.16-31.x.x, 100.x.x.x)
+    if (/^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|100\.)/.test(origin)) return callback(null, true);
+    callback(new Error(`CORS: origen no permitido: ${origin}`));
+  },
   credentials: true,           // necesario para cookies de sesión
 }));
 
@@ -92,6 +100,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`[server] Dataflow backend corriendo en http://localhost:${PORT}`);
-  console.log(`[server] Frontend esperado en: ${FRONTEND_URL}`);
+  console.log(`[server] CORS: localhost (any port) + LAN IPs permitidos`);
   console.log(`[server] Health check: http://localhost:${PORT}/api/health`);
 });

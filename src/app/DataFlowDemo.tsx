@@ -293,7 +293,7 @@ useEffect(() => {
     downloadSitesTemplateCSV, handleImportSectorsCSV,
     guessSectorForFileName, norm, detectSiteCodeFromName,
     matchRuleForFileName, guessSiteForFileName,
-  } = useSectors({ rrhhUsers });
+  } = useSectors({ rrhhUsers, me });
 
   // Notificaciones en tiempo real via SSE (activo solo con VITE_USE_API=true)
   useSSE();

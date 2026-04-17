@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { uuid } from "../lib/ids";
 import { nowISO, formatDate } from "../lib/time";
 import { prettyBytes } from "../lib/bytes";
@@ -13,16 +13,41 @@ import {
 } from '../features/observations/observationHelpers';
 
 export function useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve, guessSectorForFileName, guessSiteForFileName }: any) {
-  const [files, setFiles] = useState<any[]>(() => db.files.getAll());
+  // skipSave: true en API mode (async) hasta que cargue datos; false inmediato en localStorage (sync)
+  const skipSave = useRef(true);
+  const [files, setFiles] = useState<any[]>(() => {
+    const result = db.files.getAll();
+    if (Array.isArray(result)) { skipSave.current = false; return result; }
+    return [];
+  });
+
+  // Carga async para modo API (cuando el usuario se loguea)
+  useEffect(() => {
+    if (!me?.id) return;
+    const result = db.files.getAll();
+    if (result && typeof (result as any).then === 'function') {
+      (result as any)
+        .then((f: any) => { if (Array.isArray(f)) { skipSave.current = false; setFiles(f); } })
+        .catch(() => {});
+    }
+  }, [me?.id]);
 
   // Persist files via db (strip blobUrl — Blob objects no son serializables)
   useEffect(() => {
+    if (skipSave.current) return;
     db.files.saveAll(files);
   }, [files]);
 
   // Recarga automática cuando llega un evento SSE 'file:uploaded' o 'file:status'
   useEffect(() => {
-    const reload = () => setFiles(db.files.getAll());
+    const reload = () => {
+      const result = db.files.getAll();
+      if (result && typeof (result as any).then === 'function') {
+        (result as any).then((f: any) => { if (Array.isArray(f)) setFiles(f); }).catch(() => {});
+      } else if (Array.isArray(result)) {
+        setFiles(result);
+      }
+    };
     window.addEventListener('dataflow:files:refresh', reload);
     return () => window.removeEventListener('dataflow:files:refresh', reload);
   }, []);

@@ -1,16 +1,40 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { uuid } from "../lib/ids";
 import type { SectorConfig, SiteConfig } from "../types";
 import { db } from '../services/db';
 
-export function useSectors({ rrhhUsers }: any = {}) {
+export function useSectors({ rrhhUsers, me }: any = {}) {
 
-  const [sectors, setSectors] = useState<SectorConfig[]>(() => db.sectors.getAllSectors());
-  const [sites, setSites]     = useState<SiteConfig[]>(() => db.sectors.getAllSites());
+  const skipSaveSectors = useRef(true);
+  const skipSaveSites   = useRef(true);
 
-  useEffect(() => { db.sectors.saveSectors(sectors); }, [sectors]);
-  useEffect(() => { db.sectors.saveSites(sites); }, [sites]);
+  const [sectors, setSectors] = useState<SectorConfig[]>(() => {
+    const r = db.sectors.getAllSectors();
+    if (Array.isArray(r)) { skipSaveSectors.current = false; return r; }
+    return [];
+  });
+  const [sites, setSites] = useState<SiteConfig[]>(() => {
+    const r = db.sectors.getAllSites();
+    if (Array.isArray(r)) { skipSaveSites.current = false; return r; }
+    return [];
+  });
+
+  // Carga async para modo API (cuando el usuario se loguea)
+  useEffect(() => {
+    if (!me?.id) return;
+    const rs = db.sectors.getAllSectors();
+    if (rs && typeof (rs as any).then === 'function') {
+      (rs as any).then((s: any) => { if (Array.isArray(s)) { skipSaveSectors.current = false; setSectors(s); } }).catch(() => {});
+    }
+    const ri = db.sectors.getAllSites();
+    if (ri && typeof (ri as any).then === 'function') {
+      (ri as any).then((s: any) => { if (Array.isArray(s)) { skipSaveSites.current = false; setSites(s); } }).catch(() => {});
+    }
+  }, [me?.id]);
+
+  useEffect(() => { if (!skipSaveSectors.current) db.sectors.saveSectors(sectors); }, [sectors]);
+  useEffect(() => { if (!skipSaveSites.current) db.sectors.saveSites(sites); }, [sites]);
 
   // ── Sites CRUD ─────────────────────────────────────────────────
 

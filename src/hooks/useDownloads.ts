@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { uuid } from "../lib/ids";
 import { nowISO } from "../lib/time";
 import { getUserById } from "../lib/auth";
@@ -9,14 +9,44 @@ import { db } from '../services/db';
 
 export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPeriodId, addHistoryEntry, markDownloaded, updateFile, publishEvent, pushToast, selectedIds }: any) {
 
-  const [downloadCounters, setDownloadCounters] = useState(() => db.downloads.getCounters());
-  const [downloadedFiles,  setDownloadedFiles]  = useState(() => db.downloads.getDownloadedFiles());
-  const [downloadLogs,     setDownloadLogs]     = useState<DownloadLogEntry[]>(() => db.downloads.getLogs());
+  const skipSave = useRef(true);
 
-  useEffect(() => { db.downloads.saveCounters(downloadCounters); }, [downloadCounters]);
-  useEffect(() => { db.downloads.saveDownloadedFiles(downloadedFiles); }, [downloadedFiles]);
+  const [downloadCounters, setDownloadCounters] = useState(() => {
+    const r = db.downloads.getCounters();
+    if (r && typeof r === 'object' && typeof (r as any).then !== 'function') { skipSave.current = false; return r; }
+    return {};
+  });
+  const [downloadedFiles,  setDownloadedFiles]  = useState(() => {
+    const r = db.downloads.getDownloadedFiles();
+    if (r && typeof r === 'object' && typeof (r as any).then !== 'function') return r;
+    return {};
+  });
+  const [downloadLogs,     setDownloadLogs]     = useState<DownloadLogEntry[]>(() => {
+    const r = db.downloads.getLogs();
+    if (Array.isArray(r)) return r;
+    return [];
+  });
 
-  useEffect(() => { db.downloads.saveLogs(downloadLogs); }, [downloadLogs]);
+  // Carga async para modo API (cuando el usuario se loguea)
+  useEffect(() => {
+    if (!me?.id) return;
+    const rc = db.downloads.getCounters();
+    if (rc && typeof (rc as any).then === 'function') {
+      (rc as any).then((v: any) => { if (v && typeof v === 'object') { skipSave.current = false; setDownloadCounters(v); } }).catch(() => {});
+    }
+    const rd = db.downloads.getDownloadedFiles();
+    if (rd && typeof (rd as any).then === 'function') {
+      (rd as any).then((v: any) => { if (v && typeof v === 'object') setDownloadedFiles(v); }).catch(() => {});
+    }
+    const rl = db.downloads.getLogs();
+    if (rl && typeof (rl as any).then === 'function') {
+      (rl as any).then((v: any) => { if (Array.isArray(v)) setDownloadLogs(v); }).catch(() => {});
+    }
+  }, [me?.id]);
+
+  useEffect(() => { if (!skipSave.current) db.downloads.saveCounters(downloadCounters); }, [downloadCounters]);
+  useEffect(() => { if (!skipSave.current) db.downloads.saveDownloadedFiles(downloadedFiles); }, [downloadedFiles]);
+  useEffect(() => { if (!skipSave.current) db.downloads.saveLogs(downloadLogs); }, [downloadLogs]);
 
   function archivoYaDescargadoEnPeriodo(fileId: string, periodId: string) {
     const byPeriod = downloadedFiles[periodId] || {};
