@@ -5,6 +5,9 @@ import { getUserEffectivePermissions, ROLE_DEFAULT_PERMISSIONS } from "./perms";
 import type { AppUser } from "../types";
 import { logAudit } from "./audit";
 
+const USE_API = import.meta.env.VITE_USE_API === 'true';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+
 export async function sha256(input: string) {
   const enc = new TextEncoder().encode(input);
   const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -59,8 +62,10 @@ export function setSession(session: any) {
 }
 
 export function logout() {
-  // Loguear antes de borrar la sesión (para tener usuario disponible)
   logAudit({ modulo: 'auth', accion: 'logout' });
+  if (USE_API) {
+    fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+  }
   setSession(null);
 }
 
@@ -148,6 +153,48 @@ export function ensureDefaultAdminSync() {
 // ======================================================
 
 export async function attemptLogin(username: string, password: string) {
+  if (USE_API) {
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        logAudit({ modulo: 'auth', accion: 'login_fallido', detalles: data.error || '', resultado: 'error', usuarioNombre: username });
+        return { ok: false, error: data.error || 'Usuario o contraseña inválidos.' };
+      }
+      // Construir objeto compatible con el frontend y guardarlo en localStorage
+      const u: AppUser = {
+        id: data.id,
+        username: data.username,
+        displayName: data.displayName || data.username,
+        role: data.role,
+        active: true,
+        mustChangePassword: data.mustChangePassword || false,
+        permissions: structuredClone(ROLE_DEFAULT_PERMISSIONS[data.role] || ROLE_DEFAULT_PERMISSIONS.rrhh),
+        rangeStart: data.rangeStart,
+        rangeEnd: data.rangeEnd,
+        passwordHash: '',
+        loginAttempts: 0,
+        lockedUntil: '',
+        createdAt: '',
+        lastLoginAt: nowISO(),
+        title: data.role === 'rrhh' ? 'RRHH' : data.role === 'sueldos' ? 'Sueldos' : data.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
+        avatarDataUrl: '',
+      };
+      upsertUser(u);
+      setSession({ userId: u.id });
+      logAudit({ modulo: 'auth', accion: 'login', resultado: 'ok', usuarioId: u.id, usuarioNombre: u.displayName || u.username, usuarioRol: u.role });
+      return { ok: true, user: u };
+    } catch (err) {
+      console.error('[auth] API login error:', err);
+      return { ok: false, error: 'Error de conexión con el servidor.' };
+    }
+  }
+
   const users = loadUsers();
   const user = users.find(
     (u) => u.username.toLowerCase() === (username || "").toLowerCase()
