@@ -12,6 +12,7 @@ type User = { id: string; name: string; role: string }; // ajustá a tu forma re
 
 // Tipos / constantes de dominio
 import { STATUS, ROLES } from "../types";
+import { db } from "../services/db";
 import Splash from "../components/Splash";
 // Helpers base
 import { cls } from "../lib/cls";
@@ -1214,49 +1215,74 @@ const [helpOpen, setHelpOpen] = useState(false);
   // Bootstrap demo
   useEffect(() => {
     try {
-      // Archivos
+      // Archivos: handled by useFiles hook (localStorage mode only)
       const pf = localStorage.getItem(STORAGE_KEY_FILES);
       if (pf) setFiles(JSON.parse(pf));
 
-      // Periodos
-      const pp = localStorage.getItem(STORAGE_KEY_PERIODS);
-      if (pp) {
-        const arr = JSON.parse(pp);
-        setPeriods(Array.isArray(arr) ? arr : []);
+      // Periodos (localStorage mode)
+      const r = db.periods.getAll();
+      if (r && typeof (r as any).then === 'function') {
+        // API mode: carga async — se dispara cuando me cambia (ver useEffect de me abajo)
       } else {
-        const t = new Date();
-        const def = [{
-          id: uuid(),
-          year: t.getFullYear(),
-          month: t.getMonth() + 1,
-          name: `${monthName(t.getMonth() + 1)} ${t.getFullYear()}`,
-          // Ventana de carga inicial: sin límite (admin la ajusta después)
-          uploadFrom: "",
-          uploadTo: ""
-        }];
-        setPeriods(def);
-        localStorage.setItem(STORAGE_KEY_PERIODS, JSON.stringify(def));
-        localStorage.setItem(STORAGE_KEY_PERIOD_SELECTED, def[0].id);
-        setSelectedPeriodId(def[0].id);
+        const pp = localStorage.getItem(STORAGE_KEY_PERIODS);
+        if (pp) {
+          const arr = JSON.parse(pp);
+          setPeriods(Array.isArray(arr) ? arr : []);
+        } else {
+          const t = new Date();
+          const def = [{
+            id: uuid(), year: t.getFullYear(), month: t.getMonth() + 1,
+            name: `${monthName(t.getMonth() + 1)} ${t.getFullYear()}`,
+            uploadFrom: "", uploadTo: ""
+          }];
+          setPeriods(def);
+          localStorage.setItem(STORAGE_KEY_PERIODS, JSON.stringify(def));
+          localStorage.setItem(STORAGE_KEY_PERIOD_SELECTED, def[0].id);
+          setSelectedPeriodId(def[0].id);
+        }
+        const sel = localStorage.getItem(STORAGE_KEY_PERIOD_SELECTED);
+        if (sel) setSelectedPeriodId(sel);
       }
-
-      const sel = localStorage.getItem(STORAGE_KEY_PERIOD_SELECTED);
-      if (sel) setSelectedPeriodId(sel);
-
-      // Sectores/Sedes: managed by useSectors hook (loads from localStorage internally)
     } catch {}
   }, []);
+
+  // Carga períodos desde API cuando el usuario se loguea
+  const periodsLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!me?.id) return;
+    const r = db.periods.getAll();
+    if (r && typeof (r as any).then === 'function') {
+      (r as any).then((arr: any) => {
+        if (Array.isArray(arr) && arr.length > 0) {
+          periodsLoadedRef.current = true;
+          setPeriods(arr);
+        }
+      }).catch(() => {});
+    }
+    const rs = db.periods.getSelected();
+    if (rs && typeof (rs as any).then === 'function') {
+      (rs as any).then((id: any) => { if (id) setSelectedPeriodId(id); }).catch(() => {});
+    }
+  }, [me?.id]);
 
 
   // Persistencias mínimas
   // Files persist: handled by useFiles hook
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY_PERIODS, JSON.stringify(periods)); } catch {}
+    if (periodsLoadedRef.current) {
+      db.periods.saveAll(periods);
+    } else {
+      try { localStorage.setItem(STORAGE_KEY_PERIODS, JSON.stringify(periods)); } catch {}
+    }
   }, [periods]);
 
   useEffect(() => {
-    try { if (selectedPeriodId) localStorage.setItem(STORAGE_KEY_PERIOD_SELECTED, selectedPeriodId); } catch {}
+    if (periodsLoadedRef.current) {
+      if (selectedPeriodId) db.periods.saveSelected(selectedPeriodId);
+    } else {
+      try { if (selectedPeriodId) localStorage.setItem(STORAGE_KEY_PERIOD_SELECTED, selectedPeriodId); } catch {}
+    }
   }, [selectedPeriodId]);
 
   // 🔽 NUEVO: persistimos sectores
