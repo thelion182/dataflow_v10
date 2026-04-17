@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from '../../../services/db';
 import type { Reclamo, EstadoReclamo } from '../types/reclamo.types';
 
@@ -25,17 +25,36 @@ const FILTROS_VACÍOS: FiltrosReclamo = {
   paraLiquidacion: '',
 };
 
-export function useReclamos() {
-  const [reclamos, setReclamos] = useState<Reclamo[]>(() => db.reclamos.getAll());
+export function useReclamos({ meId }: { meId?: string } = {}) {
+  const skipSave = useRef(true);
+  const [reclamos, setReclamos] = useState<Reclamo[]>(() => {
+    const r = db.reclamos.getAll();
+    if (Array.isArray(r)) { skipSave.current = false; return r; }
+    return [];
+  });
   const [filtros, setFiltros] = useState<FiltrosReclamo>(FILTROS_VACÍOS);
 
+  // Carga async para modo API (cuando el usuario se loguea)
+  useEffect(() => {
+    if (!meId) return;
+    const r = db.reclamos.getAll();
+    if (r && typeof (r as any).then === 'function') {
+      (r as any).then((arr: any) => { if (Array.isArray(arr)) { skipSave.current = false; setReclamos(arr); } }).catch(() => {});
+    }
+  }, [meId]);
+
   function reload() {
-    setReclamos(db.reclamos.getAll());
+    const r = db.reclamos.getAll();
+    if (r && typeof (r as any).then === 'function') {
+      (r as any).then((arr: any) => { if (Array.isArray(arr)) setReclamos(arr); }).catch(() => {});
+    } else if (Array.isArray(r)) {
+      setReclamos(r);
+    }
   }
 
   // Recarga automática cuando llega un evento SSE de reclamos
   useEffect(() => {
-    const handler = () => setReclamos(db.reclamos.getAll());
+    const handler = () => reload();
     window.addEventListener('dataflow:reclamos:refresh', handler);
     return () => window.removeEventListener('dataflow:reclamos:refresh', handler);
   }, []);

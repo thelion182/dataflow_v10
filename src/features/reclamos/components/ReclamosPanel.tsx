@@ -40,13 +40,13 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
   const {
     reclamos, filtrados, filtros, setFiltros,
     crear, eliminar, eliminarLote, cambiarEstado, reload, exportarCSV, agregarNotaInterna,
-  } = useReclamos();
+  } = useReclamos({ meId });
 
   const {
     config,
     agregarItem, editarItem, eliminarItem,
     setEmailSueldos, setWhatsappActivo, setLogoDataUrl, setNotificarLiquidado,
-  } = useReclamosConfig();
+  } = useReclamosConfig({ meId });
 
   const {
     generarNotificacionCreacion,

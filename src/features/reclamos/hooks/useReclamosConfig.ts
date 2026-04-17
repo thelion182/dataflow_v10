@@ -1,13 +1,37 @@
 // @ts-nocheck
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { db } from '../../../services/db';
 import type { ReclamosConfig } from '../types/reclamo.types';
 
-export function useReclamosConfig() {
-  const [config, setConfig] = useState<ReclamosConfig>(() => db.reclamosConfig.get());
+const DEFAULT_CONFIG: ReclamosConfig = {
+  cargos: [], centrosCosto: [], liquidaciones: [],
+  causales: [], tiposReclamo: [],
+  emailSueldos: '', whatsappActivo: false, notificarLiquidado: false,
+};
+
+export function useReclamosConfig({ meId }: { meId?: string } = {}) {
+  const [config, setConfig] = useState<ReclamosConfig>(() => {
+    const r = db.reclamosConfig.get();
+    if (r && typeof (r as any).then !== 'function') return r;
+    return DEFAULT_CONFIG;
+  });
+
+  // Carga async para modo API (cuando el usuario se loguea)
+  useEffect(() => {
+    if (!meId) return;
+    const r = db.reclamosConfig.get();
+    if (r && typeof (r as any).then === 'function') {
+      (r as any).then((v: any) => { if (v && typeof v === 'object') setConfig(v); }).catch(() => {});
+    }
+  }, [meId]);
 
   function reload() {
-    setConfig(db.reclamosConfig.get());
+    const r = db.reclamosConfig.get();
+    if (r && typeof (r as any).then === 'function') {
+      (r as any).then((v: any) => { if (v && typeof v === 'object') setConfig(v); }).catch(() => {});
+    } else if (r && typeof r === 'object') {
+      setConfig(r);
+    }
   }
 
   const guardar = useCallback((nueva: ReclamosConfig) => {
