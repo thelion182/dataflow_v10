@@ -64,8 +64,9 @@ router.post('/login', async (req, res) => {
       [user.id]
     );
 
-    req.session.userId = user.id;
-    req.session.role   = user.role;
+    req.session.userId      = user.id;
+    req.session.role        = user.role;
+    req.session.displayName = user.display_name || user.username;
 
     res.json({
       id:                user.id,

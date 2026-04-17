@@ -13,7 +13,8 @@
 import { useEffect } from 'react';
 
 const USE_API  = import.meta.env.VITE_USE_API === 'true';
-const API_URL  = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const _sseBase = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_URL  = _sseBase.replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window.location.hostname}$2`);
 
 function toast(title: string, message: string) {
   window.dispatchEvent(new CustomEvent('dataflow:toast', { detail: { title, message } }));

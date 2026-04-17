@@ -84,14 +84,21 @@ router.get('/', requireAuth, async (req, res) => {
 
 // ── PUT /api/files  (sincronización completa desde frontend) ────────────────
 // Upsert de todos los registros. Los binarios no se tocan — solo metadatos.
-router.put('/', requireRole('admin', 'superadmin'), async (req, res) => {
+// Emite SSE file:uploaded para cada archivo nuevo detectado.
+router.put('/', requireAuth, async (req, res) => {
   const files = req.body;
   if (!Array.isArray(files)) return res.status(400).json({ error: 'Body debe ser array' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Obtener IDs existentes para detectar nuevos
+    const existingResult = await client.query('SELECT id FROM files');
+    const existingIds = new Set(existingResult.rows.map(r => r.id));
+
     for (const f of files) {
+      const isNew = !existingIds.has(f.id);
       await client.query(
         `INSERT INTO files (id, period_id, name, size, mime_type, status, status_override,
                             sector, site_code, uploader_id, uploader_name, version,
@@ -105,10 +112,18 @@ router.put('/', requireRole('admin', 'superadmin'), async (req, res) => {
            eliminated_at  = EXCLUDED.eliminated_at,
            updated_at     = NOW()`,
         [f.id, f.periodId, f.name, f.size, f.mimeType, f.status, f.statusOverride,
-         f.sector, f.siteCode, f.uploaderId, f.uploaderName, f.version || 1,
-         f.parentId || null, f.storagePath || null,
+         f.sector, f.siteCode, f.uploaderId || req.session.userId,
+         f.uploaderName || req.session.displayName || req.session.userId,
+         f.version || 1, f.parentId || null, f.storagePath || null,
          !!f.eliminated, f.eliminatedBy || null, f.eliminatedAt || null]
       );
+      if (isNew) {
+        broadcast('file:uploaded', {
+          fileName:     f.name,
+          uploaderName: f.uploaderName || req.session.displayName || req.session.userId,
+          periodId:     f.periodId,
+        });
+      }
     }
     await client.query('COMMIT');
     res.json({ ok: true });
