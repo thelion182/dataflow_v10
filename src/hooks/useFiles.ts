@@ -20,6 +20,13 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
     db.files.saveAll(files);
   }, [files]);
 
+  // Recarga automática cuando llega un evento SSE 'file:uploaded' o 'file:status'
+  useEffect(() => {
+    const reload = () => setFiles(db.files.getAll());
+    window.addEventListener('dataflow:files:refresh', reload);
+    return () => window.removeEventListener('dataflow:files:refresh', reload);
+  }, []);
+
   function updateFile(id: string, updater: (f: any) => any) {
     setFiles((prev: any[]) => prev.map((f: any) => (f.id === id ? updater(JSON.parse(JSON.stringify(f))) : f)));
   }

@@ -143,6 +143,7 @@ import { useFiles } from "../hooks/useFiles";
 import { useDownloads } from "../hooks/useDownloads";
 import { useReports } from "../hooks/useReports";
 import { useSectors } from "../hooks/useSectors";
+import { useSSE } from "../hooks/useSSE";
 import {
   blankObsRow, getAllObservationRows,
   pendingDudasCount, answeredDudasCount,
@@ -293,6 +294,9 @@ useEffect(() => {
     guessSectorForFileName, norm, detectSiteCodeFromName,
     matchRuleForFileName, guessSiteForFileName,
   } = useSectors({ rrhhUsers });
+
+  // Notificaciones en tiempo real via SSE (activo solo con VITE_USE_API=true)
+  useSSE();
 
 const [sectorsOpen, setSectorsOpen] = useState(false);
 const [sectorsCsvHelpOpen, setSectorsCsvHelpOpen] = useState(false);
@@ -1138,6 +1142,13 @@ const [helpOpen, setHelpOpen] = useState(false);
     setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 6000);
   }
   function dismissToast(id: string) { setToasts((prev) => prev.filter((x) => x.id !== id)); }
+
+  // Escucha notificaciones SSE → convierte en toast
+  useEffect(() => {
+    const handler = (e: any) => pushToast(e.detail);
+    window.addEventListener('dataflow:toast', handler);
+    return () => window.removeEventListener('dataflow:toast', handler);
+  }, []);
 
   const bcRef = useRef<BroadcastChannel | null>(null);
   const wsRef = useRef<WebSocket | null>(null);

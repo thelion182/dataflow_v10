@@ -60,6 +60,7 @@ const sectorsRouter   = require('./routes/sectors');
 const filesRouter     = require('./routes/files');
 const { router: downloadsRouter } = require('./routes/downloads');
 const reclamosRouter  = require('./routes/reclamos');
+const { router: eventsRouter } = require('./routes/events');
 
 app.use('/api/auth',      authRouter);
 app.use('/api/users',     usersRouter);
@@ -69,6 +70,7 @@ app.use('/api/sites',     sectorsRouter);      // sectorsRouter maneja /sites ta
 app.use('/api/files',     filesRouter);
 app.use('/api/downloads', downloadsRouter);
 app.use('/api/reclamos',  reclamosRouter);
+app.use('/api/events',    eventsRouter);       // SSE — notificaciones en tiempo real
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

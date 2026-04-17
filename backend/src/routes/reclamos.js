@@ -15,6 +15,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { broadcast } = require('./events');
 
 const router = express.Router();
 
@@ -119,6 +120,13 @@ router.post('/', requireRole('rrhh', 'admin', 'superadmin'), async (req, res) =>
 
     await client.query('COMMIT');
     const reclamo = await getReclamoConRelaciones(d.id);
+
+    broadcast('reclamo:created', {
+      ticket:            reclamo.ticket,
+      nombreFuncionario: reclamo.nombreFuncionario,
+      emisorNombre:      reclamo.emisorNombre,
+    });
+
     res.status(201).json(reclamo);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -265,6 +273,13 @@ router.post('/:id/estado', requireAuth, async (req, res) => {
     );
     await client.query('COMMIT');
     const reclamo = await getReclamoConRelaciones(req.params.id);
+
+    broadcast('reclamo:estado', {
+      ticket:            reclamo.ticket,
+      estado,
+      nombreFuncionario: reclamo.nombreFuncionario,
+    });
+
     res.json(reclamo);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -301,6 +316,9 @@ router.post('/:id/notas', requireAuth, async (req, res) => {
       [n.id, req.params.id, n.texto, n.autorId, n.autorNombre, n.fecha || new Date()]
     );
     const reclamo = await getReclamoConRelaciones(req.params.id);
+
+    broadcast('reclamo:nota', { ticket: reclamo.ticket });
+
     res.json(reclamo);
   } catch (err) {
     console.error('[reclamos] POST /:id/notas:', err);

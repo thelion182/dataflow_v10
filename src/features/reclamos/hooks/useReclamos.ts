@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { db } from '../../../services/db';
 import type { Reclamo, EstadoReclamo } from '../types/reclamo.types';
 
@@ -32,6 +32,13 @@ export function useReclamos() {
   function reload() {
     setReclamos(db.reclamos.getAll());
   }
+
+  // Recarga automática cuando llega un evento SSE de reclamos
+  useEffect(() => {
+    const handler = () => setReclamos(db.reclamos.getAll());
+    window.addEventListener('dataflow:reclamos:refresh', handler);
+    return () => window.removeEventListener('dataflow:reclamos:refresh', handler);
+  }, []);
 
   const crear = useCallback((data: Reclamo) => {
     db.reclamos.create(data);

@@ -16,6 +16,7 @@ const path    = require('path');
 const fs      = require('fs');
 const { pool } = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { broadcast } = require('./events');
 
 const router = express.Router();
 
@@ -150,7 +151,16 @@ router.post('/upload', requireRole('rrhh', 'admin', 'superadmin'),
     );
 
     const result = await pool.query('SELECT * FROM files WHERE id = $1', [id]);
-    res.status(201).json(mapFile(result.rows[0]));
+    const uploaded = mapFile(result.rows[0]);
+
+    // Notificar a todos los clientes conectados via SSE
+    broadcast('file:uploaded', {
+      fileName:     uploaded.name,
+      uploaderName: req.session.displayName || req.session.userId,
+      periodId:     uploaded.periodId,
+    });
+
+    res.status(201).json(uploaded);
   } catch (err) {
     // Limpiar archivo si falla el INSERT
     fs.unlink(req.file.path, () => {});
@@ -206,6 +216,15 @@ router.put('/:id/status', requireRole('sueldos', 'admin', 'superadmin'), async (
        WHERE id = $3`,
       [status || null, statusOverride || null, req.params.id]
     );
+
+    // Notificar via SSE
+    const fileResult = await pool.query('SELECT name FROM files WHERE id = $1', [req.params.id]);
+    broadcast('file:status', {
+      fileId:   req.params.id,
+      fileName: fileResult.rows[0]?.name || req.params.id,
+      status:   statusOverride || status,
+    });
+
     res.json({ ok: true });
   } catch (err) {
     console.error('[files] PUT /:id/status:', err);

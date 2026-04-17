@@ -206,5 +206,11 @@ npm install && npm run dev
 Acceso desde Mac/iPhone: `http://<IP-de-la-PC>:5173`  
 Para ver la IP de la PC: `ipconfig` → buscar IPv4 en la red WiFi.
 
-**Pendiente:**
-Implementar notificaciones en tiempo real con SSE (Server-Sent Events) para que cuando RRHH suba un archivo, Sueldos vea la notificación sin recargar la página.
+**SSE implementado** (`src/hooks/useSSE.ts` + `backend/src/routes/events.js`):
+- `file:uploaded` → toast + refresh automático de archivos
+- `file:status` → toast + refresh automático de archivos
+- `reclamo:created` → toast + refresh automático de reclamos
+- `reclamo:estado` → toast + refresh automático de reclamos
+- `reclamo:nota` → toast + refresh de reclamos
+- Reconexión automática si se cae la conexión (EventSource nativo)
+- Solo activo con `VITE_USE_API=true` — en modo localStorage no hace nada
