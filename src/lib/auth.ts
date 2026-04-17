@@ -6,7 +6,8 @@ import type { AppUser } from "../types";
 import { logAudit } from "./audit";
 
 const USE_API = import.meta.env.VITE_USE_API === 'true';
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const _rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_URL = _rawApiUrl.replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window.location.hostname}$2`);
 
 export async function sha256(input: string) {
   const enc = new TextEncoder().encode(input);

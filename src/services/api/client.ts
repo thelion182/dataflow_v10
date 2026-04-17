@@ -9,7 +9,13 @@
  * (JWT en localStorage, cookie HttpOnly, etc.).
  */
 
-const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+// Si VITE_API_URL usa "localhost" pero la app se está sirviendo desde otra IP (ej: Mac/iPhone
+// accediendo por red local), reemplazar "localhost" por el hostname real del navegador.
+const _configuredUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const BASE_URL = _configuredUrl.replace(
+  /^(https?:\/\/)localhost(:\d+)?/,
+  `$1${window.location.hostname}$2`
+);
 
 function getToken(): string | null {
   try {
