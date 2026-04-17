@@ -1,0 +1,54 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dataflow — Docker Compose para desarrollo local
+#
+# Levanta PostgreSQL + el backend Express.
+# El frontend (Vite) corre aparte con: npm run dev
+#
+# Pasos:
+#   1. cd backend && cp .env.example .env   (ajustar valores si es necesario)
+#   2. docker compose up -d
+#   3. docker compose exec db psql -U dataflow_user -d dataflow -f /sql/01_schema.sql
+#   4. docker compose exec db psql -U dataflow_user -d dataflow -f /sql/02_seed.sql
+#   5. En el proyecto frontend: cp .env.example .env.local
+#      Editar: VITE_USE_API=true  y  VITE_API_URL=http://localhost:3000/api
+#   6. npm run dev   (frontend en localhost:5173)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  db:
+    image: postgres:15-alpine
+    container_name: dataflow_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dataflow_user
+      POSTGRES_PASSWORD: dataflow_pass
+      POSTGRES_DB: dataflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/sql:/sql:ro      # monta los SQL para poder ejecutarlos fácilmente
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dataflow_backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    env_file:
+      - ./backend/.env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules         # evita sobreescribir node_modules del host
+      - uploads:/app/uploads
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,0 +1,499 @@
+// @ts-nocheck
+import { useState, useEffect } from "react";
+import { uuid } from "../lib/ids";
+import { nowISO, formatDate } from "../lib/time";
+import { prettyBytes } from "../lib/bytes";
+import { STATUS } from "../types";
+import { ROLE_DEFAULT_PERMISSIONS } from "../lib/perms";
+import { sclone } from '../features/shared/uiHelpers';
+import { db } from '../services/db';
+import {
+  pendingCount, answeredCount,
+  answeredFuncionarioDoubtsCount, answeredArchivoDoubtsCount,
+} from '../features/observations/observationHelpers';
+
+export function useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve, guessSectorForFileName, guessSiteForFileName }: any) {
+  const [files, setFiles] = useState<any[]>(() => db.files.getAll());
+
+  // Persist files via db (strip blobUrl — Blob objects no son serializables)
+  useEffect(() => {
+    db.files.saveAll(files);
+  }, [files]);
+
+  function updateFile(id: string, updater: (f: any) => any) {
+    setFiles((prev: any[]) => prev.map((f: any) => (f.id === id ? updater(JSON.parse(JSON.stringify(f))) : f)));
+  }
+
+  function effectiveStatus(f: any) {
+    return f?.statusOverride || f?.status || "cargado";
+  }
+
+  function addHistoryEntry(file, action, details = "") {
+    const entry = { t: nowISO(), action, byUserId: me?.id || "", byUsername: me?.username || "sistema", details };
+    return { ...file, history: [entry, ...(file.history || [])] };
+  }
+
+  function displayStatusForRole(statusKey, file) {
+    // Si hay override, mostrar SIEMPRE ese estado
+    if (file?.statusOverride) {
+      return STATUS.find((s) => s.key === file.statusOverride)?.label || file.statusOverride;
+    }
+  
+    const role = me?.role;
+    const pend = pendingCount(file);
+    const resp = answeredCount(file);
+    const baseLabel = STATUS.find((s) => s.key === statusKey)?.label || statusKey;
+  
+    // Contadores específicos de dudas respondidas
+    const respFunc = answeredFuncionarioDoubtsCount(file);
+    const respFile = answeredArchivoDoubtsCount(file);
+  
+    // --- Vista especial para RRHH cuando el estado real es "cargado" ---
+    if (role === "rrhh" && statusKey === "cargado") {
+      return pend > 0
+        ? `Enviado ( ${pend} pend / ${resp} resp )`
+        : (resp > 0
+            ? `Enviado ( ${resp} resp )`
+            : "Enviado");
+    }
+  
+    // --- Si hay pendientes (dudas o arreglos), mantenemos Observado ---
+    if (pend > 0) {
+      return `Observado ( ${pend} pend / ${resp} resp )`;
+    }
+  
+    // --- Si hay respondidas, refinamos el texto cuando el estado es "duda_respondida" ---
+    if (resp > 0) {
+      if (statusKey === "duda_respondida") {
+        if (respFunc > 0 && respFile === 0) {
+          return "Duda respondida Funcionario";
+        }
+        if (respFile > 0 && respFunc === 0) {
+          return "Duda respondida Archivo";
+        }
+        if (respFunc > 0 && respFile > 0) {
+          return "Duda respondida (Funcionario y archivo)";
+        }
+      }
+      // Caso genérico
+      return `Duda respondida ( ${resp} resp )`;
+    }
+  
+    // --- Vista especial para Sueldos cuando está cargado pero "virgen" de dudas ---
+    if (role === "sueldos" && statusKey === "cargado") {
+      return "Pendiente de descarga";
+    }
+  
+    // --- Resto de casos: usar etiqueta base ---
+    return baseLabel;
+  }
+
+
+
+  function setStatus(id, statusLike) {
+    const status = typeof statusLike === "string" ? statusLike : statusLike?.key;
+    if (!status) return;
+
+    updateFile(id, (f) =>
+      addHistoryEntry(
+        { ...f, status },
+        `Estado: ${STATUS.find((s) => s.key === status)?.label || status}`
+      )
+    );
+  }
+
+  function markDownloaded(id) {
+    updateFile(id, (f) =>
+      addHistoryEntry(
+        { ...f, status: "descargado", downloadedAt: nowISO() },
+        "Descargado"
+      )
+    );
+    publishEvent({
+      type: "download_marked",
+      title: "Marcado como descargado",
+      message: `${me?.username || "sistema"} marcó ${id} como descargado`,
+      fileId: id,
+      // si querés, podés sumar periodId también:
+      // periodId: f.periodId,
+    });
+  }
+
+  function bumpVersion(id) {
+    if (!myPerms.actions.bumpVersion) return;
+    const before = files.find((x) => x.id === id);
+    updateFile(id, (f) =>
+      addHistoryEntry(
+        { ...f, version: (f.version || 1) + 1, status: "actualizado" },
+        "Nueva versión"
+      )
+    );
+    publishEvent({
+      type: "version_bumped",
+      title: "Nueva versión",
+      message: `${me?.username || "sistema"} subió nueva versión de ${before?.name || "archivo"}`,
+      fileId: id,
+      periodId: before?.periodId,
+    });
+  }
+
+  function setNote(id, notes) {
+    updateFile(id, (f) =>
+      addHistoryEntry(
+        { ...f, notes },
+        "Nota actualizada"
+      )
+    );
+    const fx = files.find((x) => x.id === id);
+    publishEvent({
+      type: "note_updated",
+      title: "Nota actualizada",
+      message: `${me?.username || "sistema"} editó notas de ${fx?.name || "archivo"}`,
+      fileId: id,
+      periodId: fx?.periodId,
+    });
+  }
+
+  function guessTypeFromName(name) {
+    const n = (name || "").toLowerCase();
+    if (n.endsWith(".csv")) return "text/csv";
+    if (n.endsWith(".txt")) return "text/plain";
+    if (n.endsWith(".xlsx") || n.endsWith(".xls")) return "application/vnd.ms-excel";
+    if (n.endsWith(".ods")) return "application/vnd.oasis.opendocument.spreadsheet";
+    return "application/octet-stream";
+  }
+
+  function safeObjectURL(file) {
+    try { return (window.URL || (window as any).webkitURL).createObjectURL(file); } catch { return null; }
+  }
+
+  function isUploadAllowedForRole(periodId: string, role?: string | null) {
+    // Admin (y otros roles que no son rrhh) pueden subir siempre
+    if (!periodId) return false;
+    const p = periods.find((x: any) => x.id === periodId);
+    if (p?.locked && me?.role !== "superadmin") return false;
+    if (role && role !== "rrhh") return true;
+    if (!p) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const fromStr = p.uploadFrom as string | undefined;
+    const toStr   = p.uploadTo   as string | undefined;
+
+    // Si no hay fechas cargadas, no se restringe
+    if (!fromStr && !toStr) return true;
+
+    const from = fromStr ? new Date(fromStr) : null;
+    const to   = toStr   ? new Date(toStr)   : null;
+
+    if (from) {
+      const fromDay = new Date(from);
+      fromDay.setHours(0, 0, 0, 0);
+      if (today < fromDay) return false;
+    }
+
+    if (to) {
+      const toDay = new Date(to);
+      toDay.setHours(0, 0, 0, 0);
+      if (today > toDay) return false;
+    }
+
+    return true;
+  }
+
+  function deleteFile(id: string) {
+    const isSuperAdmin = me?.role === "superadmin";
+    const isAdminRole  = me?.role === "admin";
+
+    if (!isSuperAdmin && !isAdminRole) {
+      alert("Solo un administrador puede borrar archivos.");
+      return;
+    }
+
+    const f = files.find((x) => x.id === id);
+    if (!f) return;
+
+    if (isSuperAdmin) {
+      // Hard delete: elimina físicamente del array y del storage
+      if (!confirm(`¿ELIMINAR DEFINITIVAMENTE "${f.name}"?\nEsta acción no se puede deshacer y no deja trazabilidad.`)) return;
+      setFiles((prev) => prev.filter((x) => x.id !== id));
+      db.files.appendAudit({ t: new Date().toISOString(), action: "hard_delete", byUserId: me?.id || "", byUsername: me?.username || "sistema", details: `Archivo eliminado: "${f.name}" (período: ${f.periodId})`, fileId: id, periodId: f.periodId });
+      publishEvent({
+        type: "file_hard_deleted",
+        title: "Archivo eliminado permanentemente",
+        message: `${me?.username || "sistema"} eliminó permanentemente ${f.name}`,
+        fileId: id,
+        periodId: f.periodId,
+      });
+      return;
+    }
+
+    // Admin: borrado lógico (queda en trazabilidad como ANULADO)
+    if (!confirm(`¿Anular el archivo "${f.name}"? Quedará en trazabilidad como ANULADO (solo Admin lo ve).`)) return;
+
+    setFiles((prev) =>
+      prev.map((x) => {
+        if (x.id !== id) return x;
+
+        const now = new Date().toISOString();
+        const whoUser = me?.username || "sistema";
+        const whoId = me?.id || me?.username || "sistema";
+
+        const next = sclone(x);
+        (next as any).statusOverride = "eliminado";
+        (next as any).deletedAt = now;
+        (next as any).deletedByUsername = whoUser;
+        (next as any).deletedByUserId = whoId;
+
+        if (typeof addHistoryEntry === "function") {
+          return addHistoryEntry(next, "Archivo ANULADO por Admin");
+        }
+        return next;
+      })
+    );
+
+    publishEvent({
+      type: "file_deleted",
+      title: "Archivo anulado",
+      message: `${me?.username || "sistema"} anuló ${f.name}`,
+      fileId: id,
+      periodId: f.periodId,
+    });
+  }
+
+  function hardResetPeriod(periodId: string) {
+    const count = files.filter((x: any) => x.periodId === periodId).length;
+    setFiles((prev) => prev.filter((x) => x.periodId !== periodId));
+    db.files.appendAudit({ t: new Date().toISOString(), action: "period_reset", byUserId: me?.id || "", byUsername: me?.username || "sistema", details: `Reset de liquidación ${periodId} (${count} archivos eliminados)`, periodId });
+    publishEvent({
+      type: "period_reset",
+      title: "Liquidación reseteada",
+      message: `${me?.username || "sistema"} eliminó todos los archivos de la liquidación ${periodId}`,
+      periodId,
+    });
+  }
+
+  function handleUpload(ev) {
+    if (!myPerms.actions.bumpVersion) {
+      if (ev?.target) (ev.target as any).value = "";
+      alert("No tenés permiso para subir o sustituir archivos.");
+      return;
+    }
+
+    const list = Array.from(ev.target?.files || []);
+    if (!list.length) return;
+
+    if (periods.length === 0) {
+      alert("Primero creá al menos una liquidación (mes/año).");
+      if (ev.target) (ev.target as any).value = "";
+      return;
+    }
+
+    if (!selectedPeriodId) {
+      alert("Primero seleccioná una liquidación.");
+      if (ev.target) (ev.target as any).value = "";
+      return;
+    }
+
+    // 👉 NUEVO: verificar ventana de carga para RRHH
+    const allowed = isUploadAllowedForRole(selectedPeriodId, me?.role);
+    if (!allowed) {
+      if (ev?.target) (ev.target as any).value = "";
+
+      const p = periods.find((x: any) => x.id === selectedPeriodId);
+      const fromStr = p?.uploadFrom || "";
+      const toStr   = p?.uploadTo   || "";
+
+      let msg = "Para esta liquidación ya no está habilitada la carga de archivos desde Información (RRHH).";
+      if (fromStr || toStr) {
+        msg += "\n\nVentana de carga definida:";
+        msg += `\n- Desde: ${fromStr || "sin límite de inicio"}`;
+        msg += `\n- Hasta: ${toStr || "sin límite de fin"}`;
+      }
+      msg += "\n\nConsultá con un administrador si necesitás habilitarla o extenderla.";
+
+      alert(msg);
+      return;
+    }
+
+    // Si está permitido, seguimos como antes
+    setLastPicked(list.map((f) => `${f.name || "archivo"} (${prettyBytes(f.size)})`));
+
+    const lower = (s: string) => (s || "").toLowerCase();
+
+    list.forEach((file) => {
+      const existing = files.find(
+        (x) => x.periodId === selectedPeriodId && lower(x.name) === lower(file.name)
+      );
+
+      // ===== Detectar SEDE por nombre =====
+      const guessedSite = guessSiteForFileName(file.name || "");
+      const siteOpts = guessedSite
+        ? { siteId: guessedSite.id, siteName: guessedSite.name }
+        : undefined;
+
+      // ===== Detectar SECTOR por nombre =====
+      const guessedSector = guessSectorForFileName(file.name || "");
+      const sectorOpts = guessedSector
+        ? { sectorId: guessedSector.id, sectorName: guessedSector.name }
+        : undefined;
+
+      const opts = { ...(siteOpts || {}), ...(sectorOpts || {}) };
+
+        if (existing && myPerms.actions.bumpVersion) {
+          // Sustituye el archivo existente actualizando su versión en la misma fila
+          const nextVer = (Number.isFinite(existing.version) ? existing.version : 1) + 1;
+
+          const ok = confirm(
+            `Ya existe "${file.name}" en esta liquidación (v${existing.version || 1}).\n` +
+            `¿Querés reemplazarlo con esta nueva versión (v${nextVer})?`
+          );
+
+          if (ok) {
+            const newBlobUrl = safeObjectURL(file as any);
+            updateFile(existing.id, (f: any) =>
+              addHistoryEntry(
+                {
+                  ...f,
+                  version: nextVer,
+                  size: file.size,
+                  blobUrl: newBlobUrl,
+                  status: "actualizado",
+                  at: nowISO(),
+                  byUsername: me?.username || "sistema",
+                  byUserId: me?.id || "",
+                  // preserve sector/site
+                  sectorId: f.sectorId ?? (opts as any)?.sectorId ?? null,
+                  sectorName: f.sectorName ?? (opts as any)?.sectorName ?? null,
+                  siteId: f.siteId ?? (opts as any)?.siteId ?? null,
+                  siteName: f.siteName ?? (opts as any)?.siteName ?? null,
+                },
+                `Nueva versión v${nextVer} subida por ${me?.username || "sistema"}`
+              )
+            );
+            publishEvent({
+              type: "version_bumped",
+              title: `Nueva versión (v${nextVer})`,
+              message: `${me?.username || "sistema"} reemplazó ${file.name} con v${nextVer}`,
+              fileId: existing.id,
+              periodId: selectedPeriodId,
+            });
+          }
+
+          return;
+        } else {
+        // alta normal
+        createNewFile(file, opts);
+      }
+    });
+
+
+
+    if (ev.target) (ev.target as any).value = "";
+  }
+
+  function createNewFile(
+    file: { name: string; size: number; type?: string },
+    opts?: { sectorId?: string; sectorName?: string; noNews?: boolean; version?: number; seriesKey?: string; siteId?: string; siteName?: string }
+  ) {
+    const id = uuid();
+    const hasBlob = file.size && file.size > 0;
+    const blobUrl = hasBlob ? safeObjectURL(file as any) : undefined;
+
+    const base: any = {
+      id,
+      name: file.name || "sin_nombre",
+      size: Number(file.size) || 0,
+      type: file.type || guessTypeFromName(file.name || ""),
+      status: "cargado",
+      version: Number.isFinite(opts?.version) ? (opts!.version as number) : 1,
+      seriesKey: opts?.seriesKey || null,
+      byUsername: me?.username || "sistema",
+      byUserId: me?.id || "",
+      at: nowISO(),
+      notes: "",
+      blobUrl,
+      history: [],
+      observations: [],
+      periodId: selectedPeriodId,
+      sectorId: opts?.sectorId ?? null,
+      sectorName: opts?.sectorName ?? null,
+      noNews: !!opts?.noNews,
+      siteId: opts?.siteId ?? null,
+      siteName: opts?.siteName ?? null,
+    };
+
+    const isNoNews = !!opts?.noNews;
+    const enriched = addHistoryEntry(
+      base,
+      isNoNews ? "Sin novedades" : "Cargado",
+      isNoNews
+        ? `Sector marcado sin novedades por ${me?.username || "sistema"} en ${periodNameById[selectedPeriodId] || "Liquidación"}`
+        : `Archivo subido por ${me?.username || "sistema"} en ${periodNameById[selectedPeriodId] || "Liquidación"}`
+    );
+
+    setFiles((prev: any[]) => [enriched, ...prev]);
+
+    publishEvent({
+      type: "file_uploaded",
+      title: isNoNews ? "Sector sin novedades" : "Archivo cargado",
+      message: isNoNews
+        ? `${me?.username || "sistema"} marcó sin novedades el sector ${opts?.sectorName || ""} en ${periodNameById[selectedPeriodId] || "Liquidación"}`
+        : `${me?.username || "sistema"} subió ${file.name || "archivo"} en ${periodNameById[selectedPeriodId] || "Liquidación"}`,
+      fileId: id,
+      periodId: selectedPeriodId,
+    });
+  }
+
+  function clearAll() {
+    if (confirm("¿Borrar todo el demo?")) { setFiles([]); db.files.saveAll([]); }
+  }
+
+  function handleStatusChange(f, next) {
+    if (me?.role !== "admin" && me?.role !== "superadmin") {
+      alert("Solo un administrador puede cambiar el estado manualmente.");
+      return;
+    }
+    const nextKey = typeof next === "string" ? next : next?.key;
+    if (!nextKey) return;
+
+    const roleKey = me?.role === "superadmin" ? "superadmin" : "admin";
+    const allowed = new Set(ROLE_DEFAULT_PERMISSIONS[roleKey]?.allowedStatuses || ROLE_DEFAULT_PERMISSIONS.admin.allowedStatuses);
+    if (!allowed.has(nextKey)) {
+      alert("Ese estado no está permitido para cambio manual.");
+      return;
+    }
+
+    if (nextKey === "observado") {
+      // Si querés que 'observado' manual pida detalles, mantené este flujo
+      if (onOpenObserve) onOpenObserve(f.id);
+      return;
+    }
+
+    // >>> OVERRIDE manual por admin <<<
+    updateFile(f.id, (curr) =>
+      addHistoryEntry(
+        { ...curr, status: nextKey, statusOverride: nextKey },
+        `Estado forzado por admin: ${STATUS.find((s) => s.key === nextKey)?.label || nextKey}`
+      )
+    );
+
+    const lbl = STATUS.find((s) => s.key === nextKey)?.label || nextKey;
+    publishEvent({
+      type: "status_changed",
+      title: `Estado → ${lbl}`,
+      message: `${me?.username || "sistema"} cambió estado de ${f.name} a ${lbl}`,
+      fileId: f.id,
+      periodId: f.periodId,
+    });
+  }
+
+  return {
+    files, setFiles,
+    effectiveStatus, addHistoryEntry, displayStatusForRole,
+    updateFile, setStatus, markDownloaded, bumpVersion, setNote,
+    guessTypeFromName, safeObjectURL, isUploadAllowedForRole,
+    deleteFile, hardResetPeriod, handleUpload, createNewFile, clearAll, handleStatusChange,
+  };
+}
