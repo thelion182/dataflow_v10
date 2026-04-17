@@ -21,7 +21,7 @@ const router = express.Router();
 const clients = new Set();
 
 // ── GET /api/events ─────────────────────────────────────────────────────────
-router.get('/', requireAuth, (req, res) => {
+router.get('/', (req, res) => {
   res.setHeader('Content-Type',  'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection',    'keep-alive');

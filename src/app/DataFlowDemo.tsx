@@ -297,7 +297,7 @@ useEffect(() => {
   } = useSectors({ rrhhUsers, me });
 
   // Notificaciones en tiempo real via SSE (activo solo con VITE_USE_API=true)
-  useSSE();
+  useSSE({ meId: me?.id });
 
 const [sectorsOpen, setSectorsOpen] = useState(false);
 const [sectorsCsvHelpOpen, setSectorsCsvHelpOpen] = useState(false);

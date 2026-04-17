@@ -28,9 +28,9 @@ function refreshReclamos() {
   window.dispatchEvent(new CustomEvent('dataflow:reclamos:refresh'));
 }
 
-export function useSSE() {
+export function useSSE({ meId }: { meId?: string } = {}) {
   useEffect(() => {
-    if (!USE_API) return;
+    if (!USE_API || !meId) return;
 
     const es = new EventSource(`${API_URL}/events`, { withCredentials: true });
 
@@ -71,5 +71,5 @@ export function useSSE() {
     };
 
     return () => es.close();
-  }, []);
+  }, [meId]);
 }
