@@ -43,8 +43,11 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
     const reload = () => {
       const result = db.files.getAll();
       if (result && typeof (result as any).then === 'function') {
-        (result as any).then((f: any) => { if (Array.isArray(f)) setFiles(f); }).catch(() => {});
-      } else if (Array.isArray(result)) {
+        (result as any).then((f: any) => {
+          // Solo actualizar si el servidor devolvió datos (evita blanquear si la sesión expiró → 401 → [])
+          if (Array.isArray(f) && f.length > 0) setFiles(f);
+        }).catch(() => {});
+      } else if (Array.isArray(result) && result.length > 0) {
         setFiles(result);
       }
     };
