@@ -206,6 +206,8 @@ npm install && npm run dev
 Acceso desde Mac/iPhone: `http://<IP-de-la-PC>:5173`  
 Para ver la IP de la PC: `ipconfig` → buscar IPv4 en la red WiFi.
 
+Ver `DEMO_CHECKLIST.md` para el guión completo, checklist de verificación y script de arranque.
+
 **SSE implementado** (`src/hooks/useSSE.ts` + `backend/src/routes/events.js`):
 - `file:uploaded` → toast + refresh automático de archivos
 - `file:status` → toast + refresh automático de archivos
