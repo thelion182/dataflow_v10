@@ -169,7 +169,8 @@ Ver `BACKEND_GUIDE.md` — guía completa con pasos, SQL, endpoints, LDAP, nginx
 - Tailwind via CDN (no npm) — sin tree-shaking pero funciona correctamente
 
 ## Repositorio GitHub
-- URL: https://github.com/thelion182/Dataflow_v8
+- v8 (producción): https://github.com/thelion182/Dataflow_v8
+- v9pruebas (esta versión): https://github.com/thelion182/dataflow_v9pruebas
 - Branch principal: `master`
 - Cada cambio de código se commitea y pushea automáticamente a GitHub
 
@@ -182,3 +183,28 @@ Ver `BACKEND_GUIDE.md` — guía completa con pasos, SQL, endpoints, LDAP, nginx
 - El email por defecto de Sueldos es `reclamos@circulocatolico.com.uy`
 - Nunca agregar tipos estrictos TypeScript a archivos con `// @ts-nocheck`
 - Todo cambio de código → actualizar CLAUDE.md → commit + push a GitHub
+
+## Demo en red local
+
+**Objetivo:** Demo funcional en casa para mostrar a gerencia de RRHH e informática de Círculo Católico.
+PC Windows como servidor, Mac y iPhone como clientes en la misma red WiFi.
+
+**Estado actual:**
+- Docker resuelto, credenciales sincronizadas (usuario `dataflow:dataflow123`)
+- Vite configurado con `host: true` → accesible desde cualquier dispositivo en la red
+- Backend Express corriendo en puerto `3001`
+- Frontend en puerto `5173`
+
+**Secuencia para levantar:**
+```bash
+docker compose up -d
+docker compose exec db psql -U dataflow -d dataflow -f /sql/01_schema.sql
+docker compose exec db psql -U dataflow -d dataflow -f /sql/02_seed.sql
+npm install && npm run dev
+```
+
+Acceso desde Mac/iPhone: `http://<IP-de-la-PC>:5173`  
+Para ver la IP de la PC: `ipconfig` → buscar IPv4 en la red WiFi.
+
+**Pendiente:**
+Implementar notificaciones en tiempo real con SSE (Server-Sent Events) para que cuando RRHH suba un archivo, Sueldos vea la notificación sin recargar la página.
