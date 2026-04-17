@@ -3,21 +3,18 @@ version: '3.9'
 # ─────────────────────────────────────────────────────────────────────────────
 # Dataflow v9 pruebas — Docker Compose
 #
-# Lee las variables del archivo .env en la raíz del proyecto.
-# No hay nada hardcodeado aquí — todo viene del .env.
+# Lee variables del .env en la raíz del proyecto.
 #
-# PASOS PARA LEVANTAR:
-#   1. Tener Docker Desktop instalado y corriendo
-#   2. Desde la raíz del proyecto, ejecutar:
-#        docker compose up -d
-#   3. Crear el esquema (solo la primera vez):
-#        docker compose exec db psql -U dataflow -d dataflow -f /sql/01_schema.sql
-#        docker compose exec db psql -U dataflow -d dataflow -f /sql/02_seed.sql
-#   4. En otra terminal, levantar el frontend:
-#        npm install
-#        npm run dev
-#   5. Abrir http://localhost:5173
+# PASOS PARA LEVANTAR (primera vez):
+#   1. docker compose up -d
+#   2. docker compose exec db psql -U dataflow -d dataflow -f /sql/01_schema.sql
+#   3. docker compose exec db psql -U dataflow -d dataflow -f /sql/02_seed.sql
+#   4. npm install && npm run dev
+#   5. Abrir http://localhost:5173  (o http://<tu-IP>:5173 desde Mac/iPhone)
 #      Login: admin / Admin-1234
+#
+# Para ver qué usuario existe en postgres si hay dudas:
+#   docker compose exec db psql -U dataflow -d dataflow -c "\du"
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -35,6 +32,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/sql:/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
@@ -43,7 +45,8 @@ services:
     container_name: dataflow_backend
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy   # espera a que postgres esté listo
     env_file:
       - ./backend/.env
     ports:
