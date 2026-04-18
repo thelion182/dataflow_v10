@@ -48,14 +48,24 @@ export const ROLES = [
 // Lo usamos para saber qué botones habilitar: bumpVersion, download, etc.
 
 export type UserActionsPermissions = {
-  bumpVersion?: boolean;      // subir / sustituir archivo
-  download?: boolean;         // descargar
-  markDownloaded?: boolean;   // marcar como descargado
-  createPeriod?: boolean;     // crear liquidaciones
-  manageUsers?: boolean;      // abrir modal usuarios
-  exportCSV?: boolean;        // exportar reportes
-  hardDelete?: boolean;       // eliminar físico (solo superadmin)
-  resetPeriod?: boolean;      // borrar todos los archivos de una liquidación (solo superadmin)
+  // Módulo Archivos
+  bumpVersion?: boolean;        // subir / sustituir archivo
+  download?: boolean;           // descargar archivos
+  markDownloaded?: boolean;     // marcar como descargado
+  marcarDuda?: boolean;         // marcar dudas en archivos (sueldos)
+  responderDuda?: boolean;      // responder dudas (rrhh)
+  procesarDudas?: boolean;      // procesar dudas / arreglos (sueldos)
+  // Módulo Reclamos
+  crearReclamo?: boolean;       // crear reclamos
+  gestionarReclamos?: boolean;  // cambiar estado / notas en reclamos
+  // Administración
+  createPeriod?: boolean;       // crear liquidaciones
+  manageUsers?: boolean;        // gestionar usuarios
+  exportCSV?: boolean;          // exportar reportes CSV
+  exportDoubts?: boolean;       // exportar dudas/respondidas
+  // Solo superadmin (no editables en el modal)
+  hardDelete?: boolean;
+  resetPeriod?: boolean;
 };
 
 export type UserPermissions = {
