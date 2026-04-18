@@ -19,7 +19,7 @@ VALUES
   ('superadmin',
    'Super Administrador',
    'superadmin',
-   '$2a$10$hVWXMb3yM6j.2C8OqYlHge4v8p3pNdNk0P.C3fAoQ7Tg.2dkHaLhe',  -- Super-1234
+   '$2a$10$10Lise5MfpRt9zKExdbCDO4P1wjw4GIrkfg6IHKlt1Lr3gX43xtkW',  -- Super-1234
    FALSE,
    TRUE)
 ON CONFLICT (username) DO UPDATE SET

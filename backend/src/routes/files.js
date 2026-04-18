@@ -169,6 +169,20 @@ router.put('/', requireAuth, async (req, res) => {
           type:     'respuesta',
           byUser:   req.session.displayName || req.session.userId,
         });
+      } else {
+        // Detectar si alguna fila fue marcada como procesada
+        if (!isNew && Array.isArray(newObs) && Array.isArray(oldObs)) {
+          const oldProcessed = oldObs.reduce((n, t) => n + (t.rows || []).filter(r => r.processed).length, 0);
+          const newProcessed = newObs.reduce((n, t) => n + (t.rows || []).filter(r => r.processed).length, 0);
+          if (newProcessed > oldProcessed) {
+            broadcast('file:observation', {
+              fileId:   f.id,
+              fileName: f.name,
+              type:     'procesada',
+              byUser:   req.session.displayName || req.session.userId,
+            });
+          }
+        }
       }
     }
     await client.query('COMMIT');

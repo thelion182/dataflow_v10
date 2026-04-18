@@ -263,7 +263,7 @@ export function ReportesReclamos({ reclamos }: Props) {
       est['Procesado/Liquidado'] || 0, est['Rechazado'] || 0, est['Eliminado'] || 0,
     ]);
     const csv = [cols, ...rows].map(row => row.map(c => `"${c}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

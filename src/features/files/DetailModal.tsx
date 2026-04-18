@@ -235,6 +235,9 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                         <td className="px-2 py-2 align-top text-neutral-200">{r.nombre}</td>
                                         <td className="px-2 py-2 align-top text-neutral-200 whitespace-pre-wrap">
                                           {r.duda}
+                                          {r.imageDataUrl && (
+                                            <img src={r.imageDataUrl} alt="adjunto" className="mt-2 max-w-[200px] max-h-[150px] rounded-lg border border-neutral-700 cursor-pointer" onClick={() => window.open(r.imageDataUrl, '_blank')} />
+                                          )}
                                         </td>
                                         <td className="px-2 py-2 align-top text-neutral-200">{r.sector}</td>
                                         <td className="px-2 py-2 align-top text-neutral-200">{r.cc}</td>

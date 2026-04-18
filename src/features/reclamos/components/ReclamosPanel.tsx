@@ -102,18 +102,18 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
   }
 
   // Ver reclamo: si es Sueldos y el estado es "Emitido" → cambia a "En proceso" automáticamente
-  function handleVer(r: Reclamo) {
+  async function handleVer(r: Reclamo) {
     setDetalleReclamo(r);
     if (isSueldos && r.estado === 'Emitido') {
-      cambiarEstado(r.id, 'En proceso', meId, meNombre);
+      await cambiarEstado(r.id, 'En proceso', meId, meNombre);
       generarNotificacionVistaEnSueldos(r);
       reload();
     }
   }
 
-  function handleCambiarEstado(r: Reclamo, estado: EstadoReclamo, nota: string) {
+  async function handleCambiarEstado(r: Reclamo, estado: EstadoReclamo, nota: string) {
     const estadoAnterior = r.estado;
-    cambiarEstado(r.id, estado, meId, meNombre, nota || undefined);
+    await cambiarEstado(r.id, estado, meId, meNombre, nota || undefined);
     logAudit({
       modulo: 'reclamos',
       accion: 'cambiar_estado',
@@ -127,12 +127,12 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
   }
 
   // Cambio de estado en lote (desde TablaReclamosView)
-  function handleCambiarEstadoLote(ids: string[], estado: EstadoReclamo, nota: string) {
+  async function handleCambiarEstadoLote(ids: string[], estado: EstadoReclamo, nota: string) {
     for (const id of ids) {
       const r = reclamos.find(x => x.id === id);
       if (!r) continue;
       const estadoAnterior = r.estado;
-      cambiarEstado(id, estado, meId, meNombre, nota || undefined);
+      await cambiarEstado(id, estado, meId, meNombre, nota || undefined);
       logAudit({
         modulo: 'reclamos',
         accion: 'cambiar_estado',

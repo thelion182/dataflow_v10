@@ -52,8 +52,10 @@ export function useSSE({ meId }: { meId?: string } = {}) {
       const d = JSON.parse(e.data);
       if (d.type === 'nueva_duda') {
         toast('Nueva duda', `${d.byUser} registró una duda en "${d.fileName}"`);
-      } else {
+      } else if (d.type === 'respuesta') {
         toast('Duda respondida', `${d.byUser} respondió una duda en "${d.fileName}"`);
+      } else if (d.type === 'procesada') {
+        toast('Duda procesada', `${d.byUser} marcó una duda como procesada en "${d.fileName}"`);
       }
       refreshFiles();
     });
