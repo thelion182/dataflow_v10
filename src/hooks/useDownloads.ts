@@ -7,6 +7,10 @@ import type { DownloadLogEntry } from "../types";
 import { sclone } from '../features/shared/uiHelpers';
 import { db } from '../services/db';
 
+const USE_API = import.meta.env.VITE_USE_API === 'true';
+const _rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_URL = _rawApiUrl.replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window.location.hostname}$2`);
+
 export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPeriodId, addHistoryEntry, markDownloaded, updateFile, publishEvent, pushToast, selectedIds }: any) {
 
   const skipSave = useRef(true);
@@ -190,7 +194,7 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
     const fOriginal = files.find((x) => x.id === id);
     if (!fOriginal) return;
   
-    if (!fOriginal.blobUrl) {
+    if (!USE_API && !fOriginal.blobUrl) {
       alert("Este archivo no está en memoria (recarga previa). Subí uno nuevo para probar.");
       return;
     }
@@ -309,7 +313,9 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
   
     // Disparar la descarga física en el browser con el nombre final calculado
     const a = document.createElement("a");
-    a.href = fOriginal.blobUrl;
+    a.href = USE_API
+      ? `${API_URL}/files/${fOriginal.id}/download`
+      : fOriginal.blobUrl;
     a.download = finalDownloadName;
     document.body.appendChild(a);
     a.click();
@@ -352,14 +358,14 @@ async function downloadSelectedAsZip() {
     });
   }
 
-  // Filtramos archivos válidos (existen, tienen blob, y no están ya descargados)
+  // Filtramos archivos válidos (existen, tienen blob o API, y no están ya descargados)
   const filesToProcess: any[] = [];
   let yaDescargados = 0;
 
   for (const id of ids) {
     const f = files.find((x) => x.id === id);
     if (!f) continue;
-    if (!f.blobUrl) {
+    if (!USE_API && !f.blobUrl) {
       console.warn("Sin blobUrl, no puedo incluir en ZIP:", f.name);
       continue;
     }
@@ -529,7 +535,10 @@ async function downloadSelectedAsZip() {
     }
 
     // Añadimos el archivo (con el nombre ya decidido) al ZIP
-    const blob = await blobFromObjectURL(f.blobUrl);
+    const fileUrl = USE_API
+      ? `${API_URL}/files/${f.id}/download`
+      : f.blobUrl;
+    const blob = await blobFromObjectURL(fileUrl);
     zip.file(finalName, blob);
     added++;
   }
