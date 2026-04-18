@@ -21,7 +21,7 @@ export async function saveSectors(sectors: any[]): Promise<void> {
 
 export async function getAllSites(): Promise<any[]> {
   try {
-    const data = await apiGet('/sites');
+    const data = await apiGet('/sectors/sites');
     return Array.isArray(data) ? data : [];
   } catch {
     return [];
@@ -31,7 +31,7 @@ export async function getAllSites(): Promise<any[]> {
 export async function saveSites(sites: any[]): Promise<void> {
   if (!sites || sites.length === 0) return;
   try {
-    await apiPut('/sites', sites);
+    await apiPut('/sectors/sites', sites);
   } catch (err) {
     console.error('[sectorsAPI] saveSites:', err);
   }
