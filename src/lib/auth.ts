@@ -44,11 +44,13 @@ export function upsertUser(user: AppUser) {
   else list.push(user);
   saveUsers(list);
   if (USE_API) {
+    // En modo API nunca enviar passwordHash (el backend maneja los hashes, no el frontend)
+    const { passwordHash: _omit, ...userWithoutHash } = user as any;
     fetch(`${API_URL}/users/${user.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify(user),
+      body: JSON.stringify(userWithoutHash),
     }).catch(() => {});
   }
 }
@@ -441,11 +443,12 @@ export function adminSetRole(userId: string, role: any) {
   saveUsers(users);
 
   if (USE_API) {
+    const { passwordHash: _omit, ...safe } = users[idx] as any;
     fetch(`${API_URL}/users/${userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify(users[idx]),
+      body: JSON.stringify(safe),
     }).catch(() => {});
   }
 
@@ -461,11 +464,12 @@ export function adminSetActive(userId: string, active: boolean) {
   saveUsers(users);
 
   if (USE_API) {
+    const { passwordHash: _omit, ...safe } = users[idx] as any;
     fetch(`${API_URL}/users/${userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify(users[idx]),
+      body: JSON.stringify(safe),
     }).catch(() => {});
   }
 
