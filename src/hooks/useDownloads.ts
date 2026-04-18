@@ -322,14 +322,26 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
 
   
     // Disparar la descarga física en el browser con el nombre final calculado
-    const a = document.createElement("a");
-    a.href = USE_API
-      ? `${API_URL}/files/${fOriginal.id}/download`
-      : fOriginal.blobUrl;
-    a.download = finalDownloadName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    if (USE_API) {
+      // En API mode: bajar como blob para poder renombrar (a.download se ignora en cross-origin)
+      const res = await fetch(`${API_URL}/files/${fOriginal.id}/download`, { credentials: 'include' });
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = finalDownloadName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } else {
+      const a = document.createElement("a");
+      a.href = fOriginal.blobUrl;
+      a.download = finalDownloadName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   }
 
 async function downloadSelectedAsZip() {
@@ -352,9 +364,9 @@ async function downloadSelectedAsZip() {
   const JSZip = (await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm")).default;
   const zip = new JSZip();
 
-  // Helper para leer blob desde ObjectURL
+  // Helper para leer blob desde URL (soporta cross-origin con credentials)
   async function blobFromObjectURL(url: string) {
-    const res = await fetch(url);
+    const res = await fetch(url, { credentials: 'include' });
     return await res.blob();
   }
 
