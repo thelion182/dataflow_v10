@@ -187,7 +187,7 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
     });
   }
 
-  function doDownload(id: string) {
+  async function doDownload(id: string) {
     if (!myPerms.actions.download) return;
   
     // Buscar archivo
