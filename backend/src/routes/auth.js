@@ -128,6 +128,36 @@ router.get('/session', (req, res) => {
   res.json({ userId: req.session.userId });
 });
 
+// ── POST /api/auth/change-password ─────────────────────────────────────────
+router.post('/change-password', async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: 'No autenticado' });
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Faltan campos requeridos' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [req.session.userId]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',
+      [newHash, req.session.userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth] change-password:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ── PUT /api/auth/session  (usado por usersAPI.saveSession) ─────────────────
 router.put('/session', (req, res) => {
   if (req.body === null || !req.body?.userId) {

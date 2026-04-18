@@ -275,23 +275,34 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string
 ) {
+  if (USE_API) {
+    try {
+      const res = await fetch(`${API_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { ok: false, error: data.error || 'Error al cambiar contraseña.' };
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Error de conexión al servidor.' };
+    }
+  }
+
   const users = loadUsers();
   const idx = users.findIndex((u) => u.id === userId);
   if (idx < 0) return { ok: false, error: "Usuario no encontrado." };
 
-  // Validar contraseña actual
+  // Validar contraseña actual (modo localStorage usa SHA-256)
   const currHash = await sha256(currentPassword || "");
   if (currHash !== users[idx].passwordHash) {
     return { ok: false, error: "La contraseña actual no es correcta." };
   }
 
-  // Guardar nueva contraseña
   users[idx].passwordHash = await sha256(newPassword || "");
-
-  // Limpiar flag de "debe cambiar contraseña"
   users[idx].mustChangePassword = false;
-
-  // Resetear intentos/bloqueos por las dudas
   users[idx].loginAttempts = 0;
   users[idx].lockedUntil = "";
 
