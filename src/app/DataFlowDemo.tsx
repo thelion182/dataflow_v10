@@ -2393,16 +2393,7 @@ return (
 </div>
 </div>
 
-      ) : (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-          <h2 className="font-semibold mb-2">Subida de archivos</h2>
-          <p className="text-sm text-neutral-400">
-            Tu rol no puede subir ni sustituir archivos. Si necesitás agregar uno nuevo, pedí a{" "}
-            <span className="text-neutral-200 font-medium">Información (RRHH)</span> o un{" "}
-            <span className="text-neutral-200 font-medium">Administrador</span>.
-          </p>
-        </div>
-      )}
+      ) : null}
 
       {/* === Barra de progreso de entrega por liquidación === */}
       {selectedPeriodId && deliveryProgress && (() => {
