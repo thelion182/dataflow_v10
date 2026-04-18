@@ -360,6 +360,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
     list.forEach((file) => {
       const existing = files.find(
         (x) => x.periodId === selectedPeriodId && lower(x.name) === lower(file.name)
+          && x.statusOverride !== 'eliminado' && !x.eliminated
       );
 
       // ===== Detectar SEDE por nombre =====
