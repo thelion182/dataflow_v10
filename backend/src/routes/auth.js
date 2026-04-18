@@ -132,7 +132,7 @@ router.get('/session', (req, res) => {
 router.post('/change-password', async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'No autenticado' });
   const { currentPassword, newPassword } = req.body;
-  if (!currentPassword || !newPassword) {
+  if (!newPassword) {
     return res.status(400).json({ error: 'Faltan campos requeridos' });
   }
   try {
