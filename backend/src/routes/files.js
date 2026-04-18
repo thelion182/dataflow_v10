@@ -93,18 +93,23 @@ router.put('/', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Obtener IDs existentes para detectar nuevos
-    const existingResult = await client.query('SELECT id FROM files');
-    const existingIds = new Set(existingResult.rows.map(r => r.id));
+    // Obtener IDs y versiones existentes para detectar nuevos y bumps de versión
+    const existingResult = await client.query('SELECT id, version FROM files');
+    const existingMap = new Map(existingResult.rows.map(r => [r.id, r]));
 
     for (const f of files) {
-      const isNew = !existingIds.has(f.id);
+      const existing = existingMap.get(f.id);
+      const isNew = !existing;
+      const isVersionBump = !isNew && (f.version || 1) > (existing.version || 1);
       await client.query(
         `INSERT INTO files (id, period_id, name, size, mime_type, status, status_override,
                             sector, site_code, uploader_id, uploader_name, version,
                             parent_id, storage_path, eliminated, eliminated_by, eliminated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          ON CONFLICT (id) DO UPDATE SET
+           name           = EXCLUDED.name,
+           version        = EXCLUDED.version,
+           size           = EXCLUDED.size,
            status         = EXCLUDED.status,
            status_override= EXCLUDED.status_override,
            eliminated     = EXCLUDED.eliminated,
@@ -122,6 +127,12 @@ router.put('/', requireAuth, async (req, res) => {
           fileName:     f.name,
           uploaderName: f.uploaderName || req.session.displayName || req.session.userId,
           periodId:     f.periodId,
+        });
+      } else if (isVersionBump) {
+        broadcast('file:status', {
+          fileId:   f.id,
+          fileName: f.name,
+          status:   `v${f.version}`,
         });
       }
     }
