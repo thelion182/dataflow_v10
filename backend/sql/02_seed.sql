@@ -13,14 +13,14 @@ VALUES
   ('admin',
    'Administrador',
    'admin',
-   '$2a$10$N.zmdr9zkE1/Y8EQJCO4dO6FG4tgVm3WpFPz2s4S.5r.5hYQ6eH/.',  -- Admin-1234
-   TRUE,
+   '$2a$10$undY.b4PtTl0mQ5lPGMZ8OQ4UK5tBRlcUelHQf1GMHHo/5oMI4Bie',  -- Admin-1234
+   FALSE,
    TRUE),
   ('superadmin',
    'Super Administrador',
    'superadmin',
    '$2a$10$hVWXMb3yM6j.2C8OqYlHge4v8p3pNdNk0P.C3fAoQ7Tg.2dkHaLhe',  -- Super-1234
-   TRUE,
+   FALSE,
    TRUE)
 ON CONFLICT (username) DO NOTHING;
 

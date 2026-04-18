@@ -1,7 +1,7 @@
 # Guía de integración de backend — Dataflow
 
 **Para el equipo de Cómputos**  
-Versión del frontend: v8 · Preparado por: RRHH / Leonel Figuera
+Versión del frontend: v9 · Preparado por: RRHH / Leonel Figuera
 
 ---
 
@@ -15,19 +15,24 @@ Dataflow es una aplicación web interna para la Gerencia de RRHH de Círculo Cat
 | **Reclamos** | RRHH ↔ Sueldos | Gestión de reclamos de haberes con historial y notas internas |
 
 El frontend es **React 19 + TypeScript + Vite**, SPA, sin servidor propio.  
-Actualmente funciona con `localStorage` (sin backend). Esta versión (v8) tiene **toda la capa de datos abstracta y lista para conectar** a un backend real con una sola variable de entorno.
+Funciona con `localStorage` (sin backend) o conectado a un backend real con una sola variable de entorno (`VITE_USE_API=true`).
 
 ---
 
 ## 2. Estructura del repositorio
 
 ```
-Dataflow_v8/
-├── src/                         ← Frontend React (no tocar para conectar backend)
+Dataflow_v9pruebas/
+├── src/                         ← Frontend React
+│   ├── app/DataFlowDemo.tsx     ← Componente raíz
+│   ├── hooks/
+│   │   ├── useFiles.ts          ← Upload binario al backend en modo API
+│   │   ├── useDownloads.ts      ← Descarga con numeración Sueldos vía API
+│   │   └── useSSE.ts            ← Notificaciones en tiempo real (SSE)
 │   └── services/
 │       ├── db.ts                ← PUNTO ÚNICO DE MIGRACIÓN (switch automático)
-│       ├── api/                 ← Skeletons de fetch() — ya creados y documentados
-│       │   ├── client.ts        ← fetch helper con Bearer token
+│       ├── api/                 ← Implementaciones fetch()
+│       │   ├── client.ts        ← fetch helper (credentials: include, hostname dinámico)
 │       │   ├── filesAPI.ts
 │       │   ├── sectorsAPI.ts
 │       │   ├── downloadsAPI.ts
@@ -35,23 +40,24 @@ Dataflow_v8/
 │       │   ├── usersAPI.ts
 │       │   ├── reclamosAPI.ts
 │       │   └── reclamosConfigAPI.ts
-│       └── localStorage/        ← implementación actual (sin backend)
-├── backend/                     ← Skeleton de Node.js/Express — YA CREADO
+│       └── localStorage/        ← implementación alternativa sin backend
+├── backend/                     ← Node.js/Express — completamente funcional
 │   ├── src/
-│   │   ├── index.js             ← entrada Express, CORS, sesión, rutas
+│   │   ├── index.js             ← entrada Express, CORS dinámico, sesión, rutas
 │   │   ├── db.js                ← pool PostgreSQL
 │   │   ├── middleware/auth.js   ← requireAuth, requireRole
 │   │   └── routes/
-│   │       ├── auth.js          ← POST login, POST logout, GET me
-│   │       ├── users.js         ← CRUD usuarios
+│   │       ├── auth.js          ← POST login (bcrypt+lockout), logout, GET me
+│   │       ├── users.js         ← CRUD usuarios con rangos numéricos
 │   │       ├── periods.js       ← CRUD liquidaciones
 │   │       ├── sectors.js       ← CRUD sectores y sedes
-│   │       ├── files.js         ← archivos: upload, download, status, audit
+│   │       ├── files.js         ← upload binario (multer), download, SSE, audit
 │   │       ├── downloads.js     ← contadores atómicos, logs
-│   │       └── reclamos.js      ← CRUD reclamos + config
+│   │       ├── reclamos.js      ← CRUD reclamos + config
+│   │       └── events.js        ← Server-Sent Events (SSE)
 │   ├── sql/
 │   │   ├── 01_schema.sql        ← esquema completo PostgreSQL
-│   │   └── 02_seed.sql          ← datos iniciales (usuarios, períodos, config)
+│   │   └── 02_seed.sql          ← usuarios iniciales (admin/Admin-1234, superadmin/Super-1234)
 │   ├── package.json
 │   ├── Dockerfile
 │   └── .env.example
@@ -61,125 +67,126 @@ Dataflow_v8/
 
 ---
 
-## 3. Cómo conectar el backend en 5 pasos
+## 3. Cómo levantar el sistema (demo en red local)
 
-### Paso 1 — Clonar y preparar entornos
+### Paso 1 — Variables de entorno
 
 ```bash
-# Frontend
-cp .env.example .env.local
-# Editar .env.local:
-#   VITE_USE_API=true
-#   VITE_API_URL=http://localhost:3000/api
+# Frontend (.env.local en la raíz)
+VITE_USE_API=true
+VITE_API_URL=http://localhost:3001/api
 
-# Backend
-cd backend
-cp .env.example .env
-# Editar .env con la URL de la base de datos y SESSION_SECRET
+# Backend (backend/.env)
+DATABASE_URL=postgresql://dataflow:dataflow123@localhost:5432/dataflow
+SESSION_SECRET=cadena-aleatoria-32-caracteres
+UPLOAD_DIR=./uploads
+PORT=3001
 ```
 
-### Paso 2 — Levantar con Docker (recomendado)
+### Paso 2 — Levantar con Docker
 
 ```bash
 # Desde la raíz del proyecto
 docker compose up -d
 
-# Crear esquema y datos iniciales
-docker compose exec db psql -U dataflow_user -d dataflow -f /sql/01_schema.sql
-docker compose exec db psql -U dataflow_user -d dataflow -f /sql/02_seed.sql
+# Primera vez: crear esquema y datos iniciales
+docker compose exec db psql -U dataflow -d dataflow -f /sql/01_schema.sql
+docker compose exec db psql -U dataflow -d dataflow -f /sql/02_seed.sql
 ```
 
-### Paso 3 — O levantar manualmente sin Docker
+### Paso 3 — Frontend
 
 ```bash
-# Requiere: Node.js 20+, PostgreSQL 15+
-cd backend
 npm install
-
-# Crear la base de datos
-createdb dataflow
-psql dataflow -f sql/01_schema.sql
-psql dataflow -f sql/02_seed.sql
-
-# Levantar el backend
-node src/index.js
-# → http://localhost:3000
+npm run dev   # accesible en http://localhost:5173
+              # y en http://<IP-de-la-PC>:5173 desde otros dispositivos de la red
 ```
 
-### Paso 4 — Levantar el frontend
+### Paso 4 — Verificar
 
 ```bash
-# Desde la raíz
-npm install
-npm run dev
-# → http://localhost:5173
+# Usuarios iniciales tras el seed:
+#   admin      / Admin-1234
+#   superadmin / Super-1234
+
+# Si admin queda bloqueado (5 intentos fallidos), desbloquear:
+docker compose exec db psql -U dataflow -d dataflow \
+  -c "UPDATE users SET login_attempts=0, locked_until=NULL WHERE username='admin';"
+
+# Si hay que resetear la contraseña de admin:
+docker compose exec backend node -e \
+  "const b=require('bcryptjs'); b.hash('Admin-1234',10).then(h=>console.log(h));"
+# Luego:
+docker compose exec db psql -U dataflow -d dataflow \
+  -c "UPDATE users SET password_hash='<hash>', login_attempts=0, locked_until=NULL WHERE username='admin';"
 ```
 
-### Paso 5 — Verificar
+### Acceso desde Mac / iPhone en la misma red WiFi
 
-```bash
-# Health check del backend:
-curl http://localhost:3000/api/health
-# → {"status":"ok","version":"1.0.0"}
+El frontend reemplaza automáticamente `localhost` por el hostname real del navegador en todas las URLs de API (ver `src/services/api/client.ts`, `src/lib/auth.ts`, `src/hooks/useSSE.ts`, `src/hooks/useDownloads.ts`).
 
-# Login de prueba:
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"Admin-1234"}'
-```
+Solo hay que acceder desde el otro dispositivo a `http://<IP-de-la-PC>:5173`.
 
-**Todo el frontend cambia automáticamente de localStorage a API** — sin tocar ningún componente, hook ni modal.
+Para ver la IP de la PC: `ipconfig` → buscar IPv4 en la red WiFi.  
+En Windows: verificar que el firewall permite el puerto 5173 y 3001.
 
 ---
 
-## 4. Stack recomendado
+## 4. Stack
 
-| Componente | Recomendación | Ya incluido |
+| Componente | Tecnología | Dónde |
 |---|---|---|
-| **Runtime** | Node.js 20 LTS | ✅ package.json |
-| **Framework** | Express 4 | ✅ backend/src/index.js |
-| **Base de datos** | PostgreSQL 15+ | ✅ sql/01_schema.sql |
-| **Auth hashing** | bcryptjs | ✅ routes/auth.js |
-| **Sesiones** | express-session | ✅ (en memoria dev, pg en prod) |
-| **Upload** | multer | ✅ routes/files.js |
-| **Contenedor** | Docker + Compose | ✅ docker-compose.yml |
-| **Servidor web** | nginx (proxy) | Ver sección 9 |
-| **LDAP/AD** | passport-ldapauth | Ver sección 7 |
+| **Runtime** | Node.js 20 LTS | backend/ |
+| **Framework** | Express 4 | backend/src/index.js |
+| **Base de datos** | PostgreSQL 15+ | docker-compose.yml |
+| **Auth hashing** | bcryptjs (bcrypt) | routes/auth.js |
+| **Sesiones** | express-session + cookie HttpOnly | index.js |
+| **Upload** | multer (disco local) | routes/files.js |
+| **Notificaciones** | Server-Sent Events (SSE) | routes/events.js |
+| **Contenedor** | Docker + Compose | docker-compose.yml |
+| **Servidor web prod** | nginx (proxy reverso) | Ver sección 9 |
+| **LDAP/AD** | passport-ldapauth (opcional) | Ver sección 7 |
 
 ---
 
 ## 5. Modelos de datos (PostgreSQL)
 
-El esquema completo está en `backend/sql/01_schema.sql`.  
-Resumen de tablas:
+El esquema completo está en `backend/sql/01_schema.sql`.
 
 | Tabla | Descripción |
 |-------|-------------|
-| `users` | Usuarios del sistema con roles, rangos numéricos y lockout |
-| `periods` | Liquidaciones (nombre, año, mes, fechas de carga, bloqueo) |
-| `sites` | Sedes (código único, nombre, patrones de detección) |
+| `users` | Usuarios del sistema con roles, rangos numéricos de descarga y lockout por intentos |
+| `periods` | Liquidaciones (nombre, año, mes, fechas de ventana de carga, bloqueo) |
+| `sites` | Sedes (código único, nombre, patrones de detección automática por nombre de archivo) |
 | `sectors` | Sectores con patrones, responsable, centro de costo |
-| `files` | Archivos subidos con metadatos, versión, soft-delete |
-| `file_history` | Audit log de operaciones sobre archivos |
-| `observation_threads` | Hilos de dudas/arreglos por archivo |
-| `observation_rows` | Filas individuales de cada duda |
-| `download_counters` | Contador numérico por usuario+período (atómico) |
+| `files` | Archivos subidos con metadatos, versión, ruta en disco, soft-delete |
+| `file_history` | Audit log de operaciones sobre archivos (subida, descarga, cambio de estado) |
+| `download_counters` | Contador numérico por usuario+período (atómico con SELECT FOR UPDATE) |
 | `downloaded_files` | Registro de qué archivos descargó cada usuario |
 | `download_logs` | Log completo de descargas |
-| `reclamos` | Tickets de reclamos de haberes (incluye campo `adjuntos` JSON y `para_liquidacion`) |
+| `reclamos` | Tickets de reclamos de haberes (adjuntos JSON, historial, notas internas) |
 | `reclamo_historial` | Historial de cambios de estado |
 | `reclamo_notas_internas` | Notas privadas RRHH/Sueldos |
 | `reclamo_notificaciones` | Registro de emails/WhatsApp simulados |
-| `reclamos_config` | Configuración del módulo (incluye campo `notificar_liquidado` boolean) |
-| `audit_log` | Log de auditoría: login, logout, reclamos, etc. (ver sección 6 — Auditoría) |
+| `reclamos_config` | Configuración del módulo (causales, tipos, email, notificar al liquidar) |
+| `audit_log` | Log de auditoría: login, logout, reclamos, etc. |
 | `user_selected_period` | Período seleccionado por usuario (preferencia UI) |
+
+**Campos de rangos en `users`:**
+```sql
+range_start     INTEGER   -- inicio del rango de numeración (ej: 600)
+range_end       INTEGER   -- fin del rango (ej: 799)
+range_txt_start INTEGER   -- inicio para archivos .txt (calculado automáticamente si NULL)
+range_txt_end   INTEGER   -- fin para archivos .txt
+```
+El frontend divide el rango: los últimos ~100 números se reservan para `.txt`, el resto para otros formatos. Si `range_txt_start`/`range_txt_end` son NULL, se calcula en el cliente.
 
 ---
 
 ## 6. Endpoints de API — referencia completa
 
 ### Base URL: `http://servidor/api`
-### Autenticación: cookie de sesión HttpOnly (o `Authorization: Bearer <token>`)
+### Autenticación: cookie de sesión HttpOnly (`credentials: 'include'` en todos los fetch)
 
 ---
 
@@ -190,20 +197,20 @@ Resumen de tablas:
 | `POST` | `/auth/login` | todos | Login usuario/contraseña |
 | `POST` | `/auth/logout` | autenticado | Cerrar sesión |
 | `GET`  | `/auth/me` | autenticado | Usuario de la sesión actual |
-| `GET`  | `/auth/session` | autenticado | `{ userId }` — usado por el frontend |
+| `GET`  | `/auth/session` | autenticado | `{ userId }` |
 | `PUT`  | `/auth/session` | autenticado | Guardar/limpiar sesión |
 
-**POST /auth/login — body:**
-```json
-{ "username": "admin", "password": "Admin-1234" }
-```
-**Response:**
+**POST /auth/login — response incluye rangos:**
 ```json
 {
-  "id": "uuid", "username": "admin", "displayName": "Administrador",
-  "role": "admin", "mustChangePassword": true
+  "id": "uuid", "username": "adelgado", "displayName": "Ana Delgado",
+  "role": "sueldos", "mustChangePassword": false,
+  "rangeStart": 600, "rangeEnd": 799,
+  "rangeTxtStart": null, "rangeTxtEnd": null
 }
 ```
+
+**Lockout:** 5 intentos fallidos bloquean la cuenta por 5 minutos. Se desbloquea automáticamente o con SQL directo.
 
 ---
 
@@ -213,8 +220,12 @@ Resumen de tablas:
 |--------|------|-------|-------------|
 | `GET`    | `/users` | admin, superadmin | Lista todos los usuarios |
 | `PUT`    | `/users` | superadmin | Sincronización completa |
-| `GET`    | `/users/:id` | admin, propio | Obtiene usuario por ID |
+| `GET`    | `/users/:id` | admin, propio | Obtiene usuario por ID (incluye rangos frescos) |
 | `PUT`    | `/users/:id` | admin, superadmin | Crea o actualiza usuario |
+
+**PUT /users/:id — si viene `plainPassword`, el backend hashea con bcrypt automáticamente.**
+
+**IMPORTANTE:** Todas las mutaciones de usuario desde el frontend (crear, cambiar rol, asignar rango, resetear contraseña) llaman a este endpoint además de actualizar localStorage. Garantiza que todos los dispositivos vean los datos frescos.
 
 ---
 
@@ -227,20 +238,16 @@ Resumen de tablas:
 | `GET` | `/periods/selected` | autenticado | Período seleccionado del usuario |
 | `PUT` | `/periods/selected` | autenticado | Guardar período seleccionado |
 
-**Nota:** El campo `locked` solo puede modificarlo `admin` o `superadmin`.
-
 ---
 
-### Archivos — Módulo Información ⭐ (prioridad máxima)
+### Archivos — Módulo Información
 
 | Método | Ruta | Roles | Descripción |
 |--------|------|-------|-------------|
-| `GET`    | `/files?periodId=` | todos | Lista archivos (filtrar por período) |
-| `PUT`    | `/files` | admin, superadmin | Sincronización de metadatos |
-| `POST`   | `/files/upload` | rrhh, admin | Subida de archivo (multipart) |
+| `GET`    | `/files?periodId=` | todos | Lista archivos |
+| `PUT`    | `/files` | autenticado | Sync de metadatos — emite SSE si detecta archivos nuevos o bumps de versión |
+| `POST`   | `/files/upload` | rrhh, admin, superadmin | **Subida del binario** (multipart/form-data) |
 | `GET`    | `/files/audit` | todos | Historial de auditoría |
-| `PUT`    | `/files/audit` | superadmin | No-op (el backend escribe el audit) |
-| `POST`   | `/files/audit` | autenticado | No-op (ídem) |
 | `GET`    | `/files/:id/download` | todos | Descarga el binario |
 | `PUT`    | `/files/:id/status` | sueldos, admin | Cambia estado |
 | `DELETE` | `/files/:id` | admin (soft), superadmin + `?hard=true` (físico) | Elimina archivo |
@@ -249,10 +256,14 @@ Resumen de tablas:
 ```
 file:     <binario>
 periodId: "uuid-de-la-liquidacion"
-sector:   "Emergencia"
-siteCode: "SEDE01"
-fileId:   "uuid-opcional"   ← si se conoce de antemano
+sector:   "Emergencia"     (opcional)
+siteCode: "SEDE01"         (opcional)
+fileId:   "uuid-existente" (opcional — si se envía, hace UPSERT y sube la versión)
 ```
+**El frontend envía siempre el binario a este endpoint** antes de crear el registro en el estado local. Si `fileId` ya existe en la BD, se hace UPSERT y se incrementa automáticamente la versión.
+
+**GET /files/:id/download:**
+El frontend descarga el archivo como blob (fetch con `credentials: include`) y luego crea un objectURL local para poder renombrarlo con el número de Sueldos. No usar `<a href>` directo por restricciones cross-origin de `a.download`.
 
 ---
 
@@ -267,7 +278,7 @@ fileId:   "uuid-opcional"   ← si se conoce de antemano
 
 ---
 
-### Descargas y Contadores de Numeración
+### Descargas y Numeración
 
 | Método | Ruta | Roles | Descripción |
 |--------|------|-------|-------------|
@@ -276,20 +287,43 @@ fileId:   "uuid-opcional"   ← si se conoce de antemano
 | `GET` | `/downloads/downloaded` | autenticado | Archivos ya descargados |
 | `PUT` | `/downloads/downloaded` | autenticado | Marca archivos como descargados |
 | `GET` | `/downloads/logs` | admin, superadmin | Historial de descargas |
-| `PUT` | `/downloads/logs` | admin, superadmin | No-op (el backend escribe los logs) |
 
-**Atomicidad de contadores — CRÍTICO:**
+**Flujo de numeración de Sueldos:**
+1. Al descargar, el frontend llama `GET /api/users/:id` para obtener `rangeStart`/`rangeEnd` frescos del servidor
+2. Calcula el próximo número libre en el rango (separando TXT y no-TXT)
+3. Descarga el binario como blob (`fetch` con `credentials: include`)
+4. Renombra el archivo: `600 nombre.xlsx`
+5. Registra el número usado en contadores
+
+**Atomicidad de contadores:**
 ```sql
--- En routes/downloads.js — función incrementCounter()
--- SELECT FOR UPDATE garantiza unicidad entre descargas simultáneas
 INSERT INTO download_counters (user_id, period_id, current)
 VALUES ($1, $2, 1)
 ON CONFLICT (user_id, period_id) DO UPDATE
   SET current = download_counters.current + 1;
-
-SELECT current FROM download_counters
-WHERE user_id = $1 AND period_id = $2 FOR UPDATE;
 ```
+
+---
+
+### Notificaciones en tiempo real (SSE)
+
+| Método | Ruta | Roles | Descripción |
+|--------|------|-------|-------------|
+| `GET` | `/events` | ninguno (stream abierto) | Stream SSE |
+
+**El endpoint SSE no requiere autenticación** — es un stream de solo lectura. El frontend lo abre apenas el usuario se loguea y lo mantiene abierto con keep-alive cada 25 segundos.
+
+**Eventos emitidos:**
+| Evento | Cuándo | Payload |
+|--------|--------|---------|
+| `ping` | conexión inicial y cada 25s | `{}` |
+| `file:uploaded` | nuevo archivo subido | `{ fileName, uploaderName, periodId }` |
+| `file:status` | estado o versión cambiada | `{ fileId, fileName, status }` |
+| `reclamo:created` | reclamo nuevo | `{ ticket, nombreFuncionario }` |
+| `reclamo:estado` | estado de reclamo cambió | `{ ticket, estado }` |
+| `reclamo:nota` | nota interna agregada | `{ ticket }` |
+
+**En el frontend**, los eventos disparan window events (`dataflow:files:refresh`, `dataflow:reclamos:refresh`, `dataflow:toast`) que los hooks escuchan para recargar datos sin refresco manual.
 
 ---
 
@@ -303,20 +337,17 @@ WHERE user_id = $1 AND period_id = $2 FOR UPDATE;
 | `PUT`    | `/reclamos/config` | admin, superadmin | Guarda configuración |
 | `GET`    | `/reclamos/:id` | todos | Detalle de reclamo |
 | `PATCH`  | `/reclamos/:id` | autenticado | Actualiza campos |
-| `DELETE` | `/reclamos/:id` | rrhh, admin | Soft delete (permisos por rol — ver nota) |
+| `DELETE` | `/reclamos/:id` | rrhh, admin | Soft delete (permisos por rol) |
 | `POST`   | `/reclamos/:id/estado` | autenticado | Cambia estado |
 | `POST`   | `/reclamos/:id/notificaciones` | autenticado | Registra notificación |
 | `POST`   | `/reclamos/:id/notas` | autenticado | Agrega nota interna |
 
-**Notas sobre lógica de negocio para el backend:**
-
-- **Estados válidos:** `Emitido`, `En proceso`, `Liquidado`, `Rechazado/Duda de reclamo`, `Eliminado`
-- **Permisos de eliminar:** `rrhh` solo puede eliminar si `estado === 'Emitido'`; `admin`/`superadmin` pueden eliminar cualquier estado activo; `sueldos` no puede eliminar
-- **Permisos de cambiar estado:** `sueldos` puede cambiar a `En proceso`, `Liquidado`, `Rechazado/Duda de reclamo`; `rrhh` solo puede cambiar de `Rechazado/Duda de reclamo` → `Emitido`; `admin`/`superadmin` sin restricción
-- **Auto En proceso:** cuando `sueldos` visualiza un reclamo en estado `Emitido`, el frontend lo cambia automáticamente a `En proceso` — el backend debe aceptar este cambio normalmente
-- **Campo `adjuntos`:** array JSON `[{ id, nombre, tipo, tamaño, datos }]` donde `datos` es un base64 data URL. En producción considerar moverlos a almacenamiento de archivos (S3, disco)
-- **Campo `para_liquidacion`:** nombre de la liquidación en la que se acreditará el reclamo (texto libre)
-- **Notificar al liquidar:** `reclamos_config.notificar_liquidado` (boolean). Si es `true` y el estado pasa a `Liquidado`, el backend debería enviar email real al `email_funcionario` del reclamo
+**Lógica de negocio:**
+- **Estados:** `Emitido → En proceso → Liquidado / Rechazado/Duda de reclamo / Eliminado`
+- **Permisos eliminar:** `rrhh` solo si `estado === 'Emitido'`; `admin`/`superadmin` cualquier estado activo; `sueldos` no puede
+- **Auto En proceso:** cuando sueldos abre un reclamo `Emitido`, se cambia automáticamente
+- **Campo `adjuntos`:** array JSON con base64 data URLs. En producción considerar S3 o disco
+- **Notificar al liquidar:** si `reclamos_config.notificar_liquidado = true` y estado pasa a `Liquidado`, enviar email a `email_funcionario`
 
 ---
 
@@ -324,64 +355,15 @@ WHERE user_id = $1 AND period_id = $2 FOR UPDATE;
 
 | Método | Ruta | Roles | Descripción |
 |--------|------|-------|-------------|
-| `GET`    | `/audit` | superadmin | Lista entradas del log (soportar query params: `modulo`, `accion`, `resultado`, `usuarioId`, `desde`, `hasta`) |
-| `POST`   | `/audit` | autenticado | Registra una entrada (body: `AuditEntry`) |
-| `DELETE` | `/audit` | superadmin | Limpia el log completo |
-
-**Estructura de `AuditEntry`:**
-```json
-{
-  "id": "uuid",
-  "timestamp": "2026-04-10T14:30:00.000Z",
-  "usuarioId": "uuid-del-usuario",
-  "usuarioNombre": "Leonel Figuera",
-  "usuarioRol": "rrhh",
-  "modulo": "reclamos",
-  "accion": "crear_reclamo",
-  "entidadId": "uuid-del-reclamo",
-  "entidadRef": "RC-20260410-4521",
-  "detalles": "Funcionario: Juan Pérez · Tipo: Diferencia de haberes",
-  "ip": "192.168.1.10",
-  "ambiente": "Windows 10/11 · Chrome 124",
-  "resultado": "ok"
-}
-```
-
-**Valores de `modulo`:** `auth` | `reclamos` | `archivos` | `usuarios` | `liquidaciones` | `sectores` | `config`  
-**Valores de `accion`:** `login` | `login_fallido` | `login_bloqueado` | `logout` | `crear_reclamo` | `cambiar_estado` | `eliminar_reclamo` | `hard_delete` | `reset_period`  
-**Valores de `resultado`:** `ok` | `error` | `bloqueado`
-
-**Nota sobre IP:** En el frontend la IP siempre llega como `"N/D"`. El backend puede sobreescribir este campo con `req.ip` o `X-Forwarded-For` al recibir el POST, así la IP real queda registrada sin depender del cliente.
-
-**Tabla SQL sugerida:**
-```sql
-CREATE TABLE audit_log (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  timestamp     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  usuario_id    UUID,
-  usuario_nombre TEXT,
-  usuario_rol   TEXT,
-  modulo        TEXT NOT NULL,
-  accion        TEXT NOT NULL,
-  entidad_id    UUID,
-  entidad_ref   TEXT,
-  detalles      TEXT,
-  ip            TEXT,
-  ambiente      TEXT,
-  resultado     TEXT NOT NULL DEFAULT 'ok'
-);
-
-CREATE INDEX idx_audit_timestamp  ON audit_log (timestamp DESC);
-CREATE INDEX idx_audit_usuario    ON audit_log (usuario_id);
-CREATE INDEX idx_audit_modulo     ON audit_log (modulo);
-CREATE INDEX idx_audit_accion     ON audit_log (accion);
-```
+| `GET`    | `/audit` | superadmin | Lista entradas (filtros: `modulo`, `accion`, `resultado`, `usuarioId`, `desde`, `hasta`) |
+| `POST`   | `/audit` | autenticado | Registra una entrada |
+| `DELETE` | `/audit` | superadmin | Limpia el log |
 
 ---
 
 ## 7. Autenticación con Active Directory / LDAP
 
-Si la empresa tiene Active Directory, reemplazar la sección de validación de contraseña en `backend/src/routes/auth.js`:
+En Círculo Católico los usuarios se autentican con su **cédula de identidad como contraseña** contra el Active Directory de Windows. Para conectar esto:
 
 ```bash
 cd backend
@@ -389,25 +371,38 @@ npm install passport passport-ldapauth
 ```
 
 ```javascript
-// backend/src/routes/auth.js — reemplazar la validación bcrypt por:
+// backend/src/routes/auth.js — reemplazar la sección bcrypt por:
 const LdapStrategy = require('passport-ldapauth');
 
 const LDAP_OPTS = {
   server: {
-    url:           process.env.LDAP_URL,
-    bindDN:        process.env.LDAP_BIND_DN,
+    url:             process.env.LDAP_URL,
+    bindDN:          process.env.LDAP_BIND_DN,
     bindCredentials: process.env.LDAP_BIND_PASSWORD,
-    searchBase:    process.env.LDAP_BASE_DN,
-    searchFilter:  '(sAMAccountName={{username}})',   // AD
+    searchBase:      process.env.LDAP_BASE_DN,
+    searchFilter:    '(sAMAccountName={{username}})',  // AD usa sAMAccountName
   },
 };
 
 router.post('/login', (req, res, next) => {
-  passport.authenticate('ldapauth', { session: false }, (err, user) => {
-    if (err || !user) return res.status(401).json({ error: 'Credenciales inválidas' });
-    req.session.userId = user.id;   // mapear atributo LDAP al ID de la tabla users
-    req.session.role   = user.role;
-    res.json({ id: user.id, username: user.sAMAccountName, role: user.role });
+  passport.authenticate('ldapauth', LDAP_OPTS, (err, adUser) => {
+    if (err || !adUser) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+    // Buscar el usuario local por username para obtener rol y rango
+    pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [adUser.sAMAccountName])
+      .then(result => {
+        const user = result.rows[0];
+        if (!user || !user.active) return res.status(401).json({ error: 'Usuario no habilitado en Dataflow' });
+
+        req.session.userId      = user.id;
+        req.session.role        = user.role;
+        req.session.displayName = user.display_name;
+
+        res.json({
+          id: user.id, username: user.username, displayName: user.display_name,
+          role: user.role, rangeStart: user.range_start, rangeEnd: user.range_end,
+        });
+      });
   })(req, res, next);
 });
 ```
@@ -420,13 +415,17 @@ LDAP_BIND_DN=cn=dataflow-service,ou=servicios,dc=circulocatolico,dc=com,dc=uy
 LDAP_BIND_PASSWORD=clave-del-usuario-de-servicio
 ```
 
+**Con AD, los usuarios NO necesitan contraseña en la tabla `users`** — solo necesitan estar dados de alta con su `username` (= login de Windows), `role` y `range_start`/`range_end`. El AD valida la contraseña.
+
+**Recuperación de contraseña:** con AD no aplica — el usuario recupera su contraseña de Windows por el canal habitual de IT. En modo bcrypt local, el admin puede hacer reset desde el panel de gestión de usuarios.
+
 ---
 
 ## 8. Almacenamiento de archivos
 
-Los archivos binarios se guardan en disco bajo `UPLOAD_DIR` (configurado en `.env`).
+Los binarios se guardan en disco bajo `UPLOAD_DIR` (configurado en `.env`).
 
-**Estructura de directorios:**
+**Estructura:**
 ```
 uploads/
   {periodId}/
@@ -435,53 +434,59 @@ uploads/
     {uuid}.txt
 ```
 
-**Para producción con nginx** (más eficiente — nginx sirve los archivos directamente):
+**Para producción con nginx** (nginx sirve los archivos directamente, más eficiente):
 
 ```nginx
-# nginx.conf
 location /api/ {
-  proxy_pass http://localhost:3000;
+  proxy_pass http://localhost:3001;
   proxy_set_header Host $host;
   proxy_set_header X-Real-IP $remote_addr;
 }
 
-# Descarga de archivos protegida — nginx sirve directamente
+# Descarga protegida — nginx sirve directo
 location /files-privados/ {
   internal;
   alias /var/dataflow/uploads/;
 }
 ```
 
-En `backend/src/routes/files.js`, activar el bloque X-Accel-Redirect (comentado):
+En `backend/src/routes/files.js`, activar el bloque X-Accel-Redirect (actualmente comentado):
 ```javascript
-// Reemplazar res.sendFile() por:
 res.setHeader('X-Accel-Redirect', `/files-privados/${file.storage_path}`);
-res.setHeader('Content-Disposition', `attachment; filename="${file.name}"`);
-res.send();
+res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+return res.send();
 ```
 
 ---
 
 ## 9. Configuración de producción
 
-### Variables de entorno del backend (`backend/.env`)
+### Variables de entorno (`backend/.env`)
 
 ```env
 DATABASE_URL=postgresql://dataflow_user:CLAVE@localhost:5432/dataflow
 SESSION_SECRET=cadena-aleatoria-de-al-menos-32-caracteres
 UPLOAD_DIR=/var/dataflow/uploads
-FRONTEND_URL=https://dataflow.circulocatolico.com.uy
-PORT=3000
+PORT=3001
 NODE_ENV=production
 
-# LDAP/AD (si aplica)
+# LDAP/AD (cuando se conecte al AD corporativo)
 LDAP_URL=ldap://ad.circulocatolico.com.uy
 LDAP_BASE_DN=dc=circulocatolico,dc=com,dc=uy
 LDAP_BIND_DN=cn=dataflow-service,ou=servicios,...
 LDAP_BIND_PASSWORD=...
 ```
 
-### Sesiones persistentes en PostgreSQL (recomendado para producción)
+### CORS dinámico
+
+El backend acepta conexiones de cualquier `localhost` (cualquier puerto) y de cualquier IP en rango LAN (192.168.x.x, 10.x.x.x, 172.16-31.x.x). En producción, restringir a solo el dominio del servidor:
+
+```javascript
+// backend/src/index.js — reemplazar la función CORS dinámica por:
+cors({ origin: 'https://dataflow.circulocatolico.com.uy', credentials: true })
+```
+
+### Sesiones persistentes en PostgreSQL
 
 ```bash
 cd backend && npm install connect-pg-simple
@@ -489,56 +494,57 @@ cd backend && npm install connect-pg-simple
 
 En `backend/src/index.js`, descomentar las líneas de `pgSession`.
 
-### CORS
-
-Ya configurado en `index.js` para aceptar el dominio del frontend:
-```javascript
-cors({ origin: process.env.FRONTEND_URL, credentials: true })
-```
-
 ### Seguridad de cookies
 
-Ya configurado en `index.js`:
+Ya configurado en `index.js` para producción:
 ```javascript
 cookie: {
-  httpOnly: true,         // protege contra XSS
-  secure: true,           // solo HTTPS (en producción)
-  sameSite: 'strict',     // protege contra CSRF
-  maxAge: 8 * 60 * 60 * 1000,  // 8 horas
+  httpOnly: true,              // protege contra XSS
+  secure: true,                // solo HTTPS
+  sameSite: 'strict',          // protege contra CSRF
+  maxAge: 8 * 60 * 60 * 1000, // 8 horas de sesión
 }
 ```
 
 ---
 
-## 10. Checklist para la primera versión funcional
+## 10. Checklist para la primera versión en producción
 
 ### Infraestructura
 - [ ] Servidor con Node.js 20+ y PostgreSQL 15+
 - [ ] Ejecutar `01_schema.sql` y `02_seed.sql`
-- [ ] Carpeta `/var/dataflow/uploads/` con permisos de escritura
+- [ ] Carpeta `/var/dataflow/uploads/` con permisos de escritura para el proceso Node
 - [ ] nginx configurado como proxy reverso (puerto 443, HTTPS)
+- [ ] Certificado SSL instalado
 
 ### Backend
-- [ ] `cd backend && cp .env.example .env` (completar DATABASE_URL y SESSION_SECRET)
-- [ ] `npm install`
-- [ ] Verificar: `curl http://localhost:3000/api/health` → `{"status":"ok"}`
+- [ ] `cd backend && cp .env.example .env` → completar `DATABASE_URL`, `SESSION_SECRET`
+- [ ] `npm install && node src/index.js`
+- [ ] Verificar: `curl http://localhost:3001/api/health` → `{"status":"ok"}`
 - [ ] Verificar login: `POST /api/auth/login` con `admin / Admin-1234`
 
 ### Frontend
-- [ ] `cp .env.example .env.local`
-- [ ] Editar: `VITE_USE_API=true` y `VITE_API_URL=http://tu-servidor/api`
-- [ ] `npm run dev` (desarrollo) o `npm run build` (producción)
-- [ ] Verificar que el login funciona en el navegador
+- [ ] `cp .env.example .env.local` → `VITE_USE_API=true`, `VITE_API_URL=https://dataflow.circulocatolico.com.uy/api`
+- [ ] `npm run build` → copiar `dist/` al servidor web
+- [ ] Verificar que el login funciona desde el navegador
 
 ### Módulos (orden recomendado de verificación)
 - [ ] Login / logout
 - [ ] Liquidaciones (crear, bloquear)
-- [ ] Subida de archivos (módulo Información)
-- [ ] Descarga de archivos + numeración
+- [ ] Subida de archivos desde RRHH
+- [ ] Descarga de archivos con numeración desde Sueldos
+- [ ] Notificaciones SSE en tiempo real (subir desde PC, ver toast en Mac)
 - [ ] Sectores y sedes
-- [ ] Usuarios (admin)
-- [ ] Reclamos (crear, cambiar estado, adjuntos, notas internas)
-- [ ] Auditoría (POST /audit desde frontend, GET /audit en dashboard superadmin)
+- [ ] Gestión de usuarios y rangos desde admin
+- [ ] Reclamos (crear, cambiar estado, notas internas)
+- [ ] Auditoría (dashboard superadmin)
+
+### Paso a AD (cuando esté disponible)
+- [ ] Instalar `passport passport-ldapauth` en backend
+- [ ] Configurar variables LDAP en `.env`
+- [ ] Reemplazar sección bcrypt en `routes/auth.js` por validación LDAP (ver sección 7)
+- [ ] Crear usuarios en la tabla `users` con `username` = login de Windows, sin `password_hash`
+- [ ] Probar login con cédula como contraseña
 
 ---
 
@@ -546,14 +552,13 @@ cookie: {
 
 Si hay datos cargados en localStorage del navegador que se quieren migrar:
 
-1. Abrir la app en el navegador (con `VITE_USE_API=false` todavía)
-2. Abrir DevTools → Application → Local Storage
-3. Copiar el valor de cada clave (ver mapa en CLAUDE.md sección "Persistencia")
-4. Crear un script de migración SQL con los JSON extraídos
-5. Insertar en las tablas correspondientes
-6. Cambiar a `VITE_USE_API=true`
+1. Abrir la app en el navegador con `VITE_USE_API=false`
+2. DevTools → Application → Local Storage → copiar cada clave
+3. Crear un script de migración SQL con los JSON extraídos
+4. Insertar en las tablas correspondientes
+5. Cambiar a `VITE_USE_API=true`
 
-O alternativamente: la primera vez que el usuario use la app con backend, los datos de localStorage quedan huérfanos en el navegador — no pasan al backend. Si los datos son importantes, hacer la migración manual.
+O bien: la primera vez que el usuario use la app con backend, los datos de localStorage quedan huérfanos. Si los datos son importantes, hacer la migración manual antes del go-live.
 
 ---
 
@@ -566,9 +571,9 @@ Cuando se implemente una nueva feature que necesite datos del backend:
 3. Agregar el mapeo en `src/services/db.ts`
 4. El hook o componente usa `db.xxx.nuevaFuncion()` sin saber si es API o localStorage
 
-Este patrón garantiza que el sistema siempre funcione en modo sin backend.
+Este patrón garantiza que el sistema siempre funcione en modo sin backend (útil para demos offline).
 
 ---
 
 *Ante cualquier duda sobre la arquitectura del frontend, consultar a Leonel Figuera (RRHH).*  
-*Repositorio: https://github.com/thelion182/Dataflow_v8*
+*Repositorio v9: https://github.com/thelion182/dataflow_v9pruebas*

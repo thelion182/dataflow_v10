@@ -1680,30 +1680,7 @@ const overlay = (() => {
                 {bootReady ? "Entrar" : "Preparando…"}
               </button>
 
-              <div className="text-xs text-neutral-500 text-center">
-                * Admin inicial: <span className="text-neutral-300">admin / Admin-1234</span> (se pedirá cambio).
-              </div>
             </form>
-
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem("dataflow-users");
-                    localStorage.removeItem("dataflow-session");
-                    alert("Admin reseteado. Usuario: admin / Contraseña: Admin-1234. Se recargará la página.");
-                    location.reload();
-                  } catch (e) {
-                    alert("No se pudo resetear: " + (e?.message || e));
-                  }
-                }}
-                className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-xs"
-                title="Solo para la demo: borra usuarios y sesión locales"
-              >
-                Reset admin (demo)
-              </button>
-            </div>
           </div>
         </div>
         <ToastsFragment toasts={toasts} onDismiss={dismissToast} />
@@ -1750,25 +1727,6 @@ const overlay = (() => {
               </div>
             </form>
 
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem("dataflow-users");
-                    localStorage.removeItem("dataflow-session");
-                    alert("Admin reseteado. Usuario: admin / Contraseña: Admin-1234. Se recargará la página.");
-                    location.reload();
-                  } catch (e) {
-                    alert("No se pudo resetear: " + (e?.message || e));
-                  }
-                }}
-                className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-xs"
-                title="Solo para la demo: borra usuarios y sesión locales"
-              >
-                Reset admin (demo)
-              </button>
-            </div>
           </div>
         </div>
         <ToastsFragment toasts={toasts} onDismiss={dismissToast} />
