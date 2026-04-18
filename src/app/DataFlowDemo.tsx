@@ -158,7 +158,11 @@ import { UserAdminModal } from "../features/users/UserAdminModal";
 import { PermissionEditorModal } from "../features/users/PermissionEditorModal";
 import { ProfileModal } from "../features/users/ProfileModal";
 import { SuperadminDashboard } from "../features/users/SuperadminDashboard";
+import { UserConfigModal } from "../features/users/UserConfigModal";
 import { ReclamosPanel } from "../features/reclamos/components/ReclamosPanel";
+import { NotificationBell } from "../components/NotificationBell";
+import { ProcesarDudasModal } from "../features/observations/ProcesarDudasModal";
+import { VerPorSectorPanel } from "../features/files/VerPorSectorPanel";
 
 import { APP, ROLE_LABELS } from "../features/shared/constants";
 import {
@@ -1151,6 +1155,9 @@ const [helpOpen, setHelpOpen] = useState(false);
 
   // ===== Perfil =====
   const [profileOpen, setProfileOpen] = useState(false);
+  const [userConfigOpen, setUserConfigOpen] = useState(false);
+  const [procesarDudasOpen, setProcesarDudasOpen] = useState(false);
+  const [verPorSectorOpen, setVerPorSectorOpen] = useState(false);
 
   // ===== Gestión Usuarios =====
   const [usersOpen, setUsersOpen] = useState(false);
@@ -2206,6 +2213,9 @@ return (
             </button>
           </div>
 
+          {/* Campana de notificaciones */}
+          <NotificationBell />
+
           {/* Menú del usuario (avatar + nombre + rol) */}
           <div className="relative">
             <button
@@ -2240,6 +2250,15 @@ return (
                   className={MENU_ITEM}
                 >
                   👤 Mi perfil
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(null);
+                    setUserConfigOpen(true);
+                  }}
+                  className={MENU_ITEM}
+                >
+                  ⚙️ Configuración
                 </button>
 
                 {myPerms?.actions?.manageUsers && (
@@ -2711,6 +2730,37 @@ return (
           >
             Arreglos pendientes
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDoubtMode("resp_no_proc");
+              setDoubtValue("");
+            }}
+            className="px-2 py-1 rounded-lg bg-neutral-800/60 border border-orange-700/60 hover:bg-orange-900/30 text-orange-300"
+          >
+            Respondidas sin procesar
+          </button>
+
+          {/* Ver por Sector — todos los roles */}
+          <button
+            type="button"
+            onClick={() => setVerPorSectorOpen(true)}
+            className="px-2 py-1 rounded-lg bg-neutral-800/60 border border-neutral-700/80 hover:bg-neutral-700/80 text-neutral-300"
+          >
+            🏢 Ver por sector
+          </button>
+
+          {/* Procesar Dudas — solo Sueldos */}
+          {meRole === 'sueldos' && (
+            <button
+              type="button"
+              onClick={() => setProcesarDudasOpen(true)}
+              className="px-2 py-1 rounded-lg bg-emerald-900/40 border border-emerald-700/60 hover:bg-emerald-800/50 text-emerald-300"
+            >
+              ✅ Procesar dudas / arreglos
+            </button>
+          )}
         </div>
       </div>
 
@@ -2894,6 +2944,38 @@ return (
         <PermissionEditorModal
           userId={permEdit.userId}
           onClose={() => setPermEdit({ open: false, userId: null })}
+        />
+      )}
+
+      {/* MODAL: Configuración de usuario */}
+      {userConfigOpen && (
+        <UserConfigModal onClose={() => setUserConfigOpen(false)} />
+      )}
+
+      {/* MODAL: Procesar dudas / arreglos (Sueldos) */}
+      {procesarDudasOpen && meRole === 'sueldos' && (
+        <ProcesarDudasModal
+          files={files.filter(f => !f.eliminated && f.periodId === selectedPeriodId)}
+          meId={me?.id || ''}
+          meNombre={me?.displayName || me?.username || ''}
+          onClose={() => setProcesarDudasOpen(false)}
+          onProcess={async (rows, byId, byName) => {
+            for (const { fileId, threadId, rowId } of rows) {
+              markObservationProcessed(fileId, threadId, rowId);
+            }
+            // pequeña pausa para que los updates de estado se propaguen
+            await new Promise(r => setTimeout(r, 200));
+          }}
+        />
+      )}
+
+      {/* PANEL: Ver por Sector */}
+      {verPorSectorOpen && (
+        <VerPorSectorPanel
+          files={files.filter(f => !f.eliminated && f.periodId === selectedPeriodId)}
+          sectors={sectors}
+          sites={sites}
+          onClose={() => setVerPorSectorOpen(false)}
         />
       )}
 

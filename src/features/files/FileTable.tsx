@@ -8,7 +8,6 @@ import {
   pendingDudasCount, answeredDudasCount,
   pendingArreglosCount, answeredArreglosCount,
 } from "../observations/observationHelpers";
-import StatusSelect from "../../components/StatusSelect";
 import { RowMenuPortal } from "./RowMenuPortal";
 
 export function FileTable({
@@ -149,7 +148,11 @@ export function FileTable({
                     </td>
 
                     <td className="px-4 py-3 text-neutral-200">{f.name}</td>
-                    <td className="px-4 py-3 text-neutral-400">{typeBadge(f.type)}</td>
+                    <td className="px-4 py-3 text-neutral-400">
+                      <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300 text-[11px] font-mono">
+                        {f.fileType || (f.name ? f.name.split('.').pop()?.toUpperCase() : 'FILE') || 'FILE'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-neutral-400">{prettyBytes(f.size)}</td>
 
                     <td className="px-4 py-3">
@@ -161,30 +164,14 @@ export function FileTable({
                     </td>
 
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cls(
-                            "px-2 py-0.5 rounded-lg text-xs",
-                            statusBadgeClasses(effectiveStatus(f))
-                          )}
-                        >
-                          {displayStatusForRole(effectiveStatus(f), f)}
-                        </span>
-
-                        {(meRole === "admin" || meRole === "superadmin") && (
-                          <StatusSelect
-                            key={f.id + ":" + effectiveStatus(f)}
-                            f={f}
-                            value={effectiveStatus(f)}
-                            allowedStatuses={
-                              Array.isArray(myPerms.allowedStatuses)
-                                ? myPerms.allowedStatuses
-                                : Array.from(myPerms.allowedStatuses || [])
-                            }
-                            onChangeStatus={(next) => handleStatusChange(f, next)}
-                          />
+                      <span
+                        className={cls(
+                          "px-2 py-0.5 rounded-lg text-xs",
+                          statusBadgeClasses(effectiveStatus(f))
                         )}
-                      </div>
+                      >
+                        {displayStatusForRole(effectiveStatus(f), f)}
+                      </span>
                     </td>
 
                     {/* Dudas + arreglos */}

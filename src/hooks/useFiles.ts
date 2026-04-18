@@ -91,7 +91,23 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
   }
 
   function effectiveStatus(f: any) {
-    return f?.statusOverride || f?.status || "cargado";
+    // statusOverride siempre tiene prioridad (admin puede fijar un estado)
+    if (f?.statusOverride) return f.statusOverride;
+
+    // Auto-derivar desde observaciones (dudas + arreglos)
+    const obs = (f?.observations || []).filter((t: any) => !t?.deleted);
+    if (obs.length > 0) {
+      const allRows = obs.flatMap((t: any) => t.rows || []);
+      if (allRows.length > 0) {
+        const pending  = allRows.filter((r: any) => !r.answered).length;
+        const unproc   = allRows.filter((r: any) => r.answered && !r.processed).length;
+        if (pending > 0)  return "con_dudas";    // al menos una sin responder → con dudas
+        if (unproc > 0)   return "pend_procesar"; // todas respondidas pero sin procesar
+        return "procesado";                       // todo respondido Y procesado
+      }
+    }
+
+    return f?.status || "cargado";
   }
 
   function addHistoryEntry(file, action, details = "") {
@@ -100,56 +116,32 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
   }
 
   function displayStatusForRole(statusKey, file) {
-    // Si hay override, mostrar SIEMPRE ese estado
-    if (file?.statusOverride) {
-      return STATUS.find((s) => s.key === file.statusOverride)?.label || file.statusOverride;
-    }
-  
     const role = me?.role;
     const pend = pendingCount(file);
     const resp = answeredCount(file);
     const baseLabel = STATUS.find((s) => s.key === statusKey)?.label || statusKey;
-  
-    // Contadores específicos de dudas respondidas
-    const respFunc = answeredFuncionarioDoubtsCount(file);
-    const respFile = answeredArchivoDoubtsCount(file);
-  
-    // --- Vista especial para RRHH cuando el estado real es "cargado" ---
-    if (role === "rrhh" && statusKey === "cargado") {
-      return pend > 0
-        ? `Enviado ( ${pend} pend / ${resp} resp )`
-        : (resp > 0
-            ? `Enviado ( ${resp} resp )`
-            : "Enviado");
+
+    // --- Auto-estados de observaciones (prioridad máxima) ---
+    if (statusKey === "con_dudas") {
+      return `Con dudas (${pend} pend${resp > 0 ? ` / ${resp} resp` : ''})`;
     }
-  
-    // --- Si hay pendientes (dudas o arreglos), mantenemos Observado ---
-    if (pend > 0) {
-      return `Observado ( ${pend} pend / ${resp} resp )`;
+    if (statusKey === "pend_procesar") {
+      return `Pend. de procesar (${resp} resp)`;
     }
-  
-    // --- Si hay respondidas, refinamos el texto cuando el estado es "duda_respondida" ---
-    if (resp > 0) {
-      if (statusKey === "duda_respondida") {
-        if (respFunc > 0 && respFile === 0) {
-          return "Duda respondida Funcionario";
-        }
-        if (respFile > 0 && respFunc === 0) {
-          return "Duda respondida Archivo";
-        }
-        if (respFunc > 0 && respFile > 0) {
-          return "Duda respondida (Funcionario y archivo)";
-        }
-      }
-      // Caso genérico
-      return `Duda respondida ( ${resp} resp )`;
+    if (statusKey === "procesado") {
+      return "Procesado ✓";
     }
-  
-    // --- Vista especial para Sueldos cuando está cargado pero "virgen" de dudas ---
+
+    // --- Vista especial para Sueldos cuando está cargado ---
     if (role === "sueldos" && statusKey === "cargado") {
       return "Pendiente de descarga";
     }
-  
+
+    // --- Vista especial para RRHH cuando el estado real es "cargado" ---
+    if (role === "rrhh" && statusKey === "cargado") {
+      return "Enviado";
+    }
+
     // --- Resto de casos: usar etiqueta base ---
     return baseLabel;
   }

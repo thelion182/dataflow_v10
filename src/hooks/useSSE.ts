@@ -7,6 +7,7 @@
  *
  * Al recibir eventos del backend, dispara:
  *   - window event 'dataflow:toast'            → DataFlowDemo lo convierte en toast
+ *   - window event 'dataflow:notification'     → NotificationBell lo almacena en historial
  *   - window event 'dataflow:files:refresh'    → useFiles recarga los archivos
  *   - window event 'dataflow:reclamos:refresh' → useReclamos recarga los reclamos
  */
@@ -18,6 +19,12 @@ const API_URL  = _sseBase.replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window.
 
 function toast(title: string, message: string) {
   window.dispatchEvent(new CustomEvent('dataflow:toast', { detail: { title, message } }));
+}
+
+function notify(category: string, title: string, message: string, extra: any = {}) {
+  window.dispatchEvent(new CustomEvent('dataflow:notification', {
+    detail: { category, title, message, timestamp: new Date().toISOString(), ...extra }
+  }));
 }
 
 function refreshFiles() {
@@ -38,42 +45,57 @@ export function useSSE({ meId }: { meId?: string } = {}) {
 
     es.addEventListener('file:uploaded', (e: any) => {
       const d = JSON.parse(e.data);
+      notify('subidas', 'Archivo nuevo', `${d.uploaderName} subió "${d.fileName}"`, { fileId: d.fileId });
       toast('Archivo nuevo', `${d.uploaderName} subió "${d.fileName}"`);
       refreshFiles();
     });
 
     es.addEventListener('file:status', (e: any) => {
       const d = JSON.parse(e.data);
+      notify('subidas', 'Archivo actualizado', `"${d.fileName}" → ${d.status}`, { fileId: d.fileId });
       toast('Archivo actualizado', `"${d.fileName}" → ${d.status}`);
+      refreshFiles();
+    });
+
+    es.addEventListener('file:downloaded', (e: any) => {
+      const d = JSON.parse(e.data);
+      notify('descargas', 'Archivo descargado', `${d.downloadedBy} descargó "${d.fileName}"`, { fileId: d.fileId });
+      toast('Archivo descargado', `${d.downloadedBy} descargó "${d.fileName}"`);
       refreshFiles();
     });
 
     es.addEventListener('file:observation', (e: any) => {
       const d = JSON.parse(e.data);
       if (d.type === 'nueva_duda') {
+        notify('dudas', 'Nueva duda', `${d.byUser} registró una duda en "${d.fileName}"`, { fileId: d.fileId });
         toast('Nueva duda', `${d.byUser} registró una duda en "${d.fileName}"`);
       } else if (d.type === 'respuesta') {
+        notify('respuestas', 'Duda respondida', `${d.byUser} respondió una duda en "${d.fileName}"`, { fileId: d.fileId });
         toast('Duda respondida', `${d.byUser} respondió una duda en "${d.fileName}"`);
       } else if (d.type === 'procesada') {
-        toast('Duda procesada', `${d.byUser} marcó una duda como procesada en "${d.fileName}"`);
+        notify('procesamiento', 'Duda procesada', `${d.byUser} procesó una duda en "${d.fileName}"`, { fileId: d.fileId });
+        toast('Duda procesada', `${d.byUser} procesó una duda en "${d.fileName}"`);
       }
       refreshFiles();
     });
 
     es.addEventListener('reclamo:created', (e: any) => {
       const d = JSON.parse(e.data);
+      notify('reclamos', 'Nuevo reclamo', `${d.ticket} — ${d.nombreFuncionario}`, { ticket: d.ticket });
       toast('Nuevo reclamo', `${d.ticket} — ${d.nombreFuncionario}`);
       refreshReclamos();
     });
 
     es.addEventListener('reclamo:estado', (e: any) => {
       const d = JSON.parse(e.data);
+      notify('reclamos', 'Reclamo actualizado', `${d.ticket} → ${d.estado}`, { ticket: d.ticket });
       toast('Reclamo actualizado', `${d.ticket} → ${d.estado}`);
       refreshReclamos();
     });
 
     es.addEventListener('reclamo:nota', (e: any) => {
       const d = JSON.parse(e.data);
+      notify('reclamos', 'Nota interna', `Nueva nota en ${d.ticket}`, { ticket: d.ticket });
       toast('Nota interna', `Nueva nota en ${d.ticket}`);
       refreshReclamos();
     });

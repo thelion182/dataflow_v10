@@ -13,14 +13,17 @@
 // Y los labels son lo que se muestra en la UI.
 
 export const STATUS = [
-  { key: "cargado",         label: "Enviado" },              // subido por RRHH
-  { key: "observado",       label: "Observado" },            // sueldos marcó dudas
-  { key: "duda_respondida", label: "Duda respondida" },      // RRHH contestó todo
-  { key: "descargado",      label: "Descargado" },           // Sueldos descargó
-  { key: "listo",           label: "Listo" },                // para estados forzados
-  { key: "actualizado",     label: "Actualizado" },          // nueva versión subida
-  { key: "sustituido",      label: "Sustituido" },           // archivo reemplazado
-  { key: "eliminado",       label: "Eliminado" },            // admin borró
+  { key: "cargado",             label: "Enviado" },              // subido por RRHH
+  { key: "observado",           label: "Observado" },            // sueldos marcó dudas
+  { key: "con_dudas",           label: "Con dudas" },            // auto: tiene dudas sin responder
+  { key: "duda_respondida",     label: "Duda respondida" },      // RRHH contestó todo
+  { key: "pend_procesar",       label: "Pend. de procesar" },    // auto: respondida, sin procesar
+  { key: "descargado",          label: "Descargado" },           // Sueldos descargó
+  { key: "procesado",           label: "Procesado" },            // auto: todo procesado
+  { key: "listo",               label: "Listo" },                // para estados forzados
+  { key: "actualizado",         label: "Actualizado" },          // nueva versión subida
+  { key: "sustituido",          label: "Sustituido" },           // archivo reemplazado
+  { key: "eliminado",           label: "Eliminado" },            // admin borró
 ];
 
 // =========================

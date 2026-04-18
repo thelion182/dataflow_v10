@@ -211,7 +211,7 @@ CREATE TABLE IF NOT EXISTS reclamos (
   emisor_nombre      VARCHAR(200),
   estado             VARCHAR(50) DEFAULT 'Emitido'
                        CHECK (estado IN ('Emitido', 'En proceso',
-                                         'Procesado/Liquidado', 'Rechazado', 'Eliminado')),
+                                         'Liquidado', 'Rechazado/Duda de reclamo', 'Eliminado')),
   eliminado          BOOLEAN DEFAULT FALSE,
   created_at         TIMESTAMPTZ DEFAULT NOW(),
   updated_at         TIMESTAMPTZ DEFAULT NOW()

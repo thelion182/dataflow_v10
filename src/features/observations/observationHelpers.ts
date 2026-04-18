@@ -98,6 +98,7 @@ export function matchesDoubtFilter(file: any, mode: any, value: any) {
   if (mode === "arreglo")       return rows.some(r => r._tipo === "arreglo");
   if (mode === "arreglo_pend")  return rows.some(r => r._tipo === "arreglo" && !r?.answered);
   if (mode === "resp_no_proc")  return rows.some(r => !!r?.answered && !r?.processed);
+  if (mode === "pend_procesar") return rows.some(r => !!r?.answered && !r?.processed);
   switch (mode) {
     case "nro":    return rows.some(r => String(r?.nro || "").toLowerCase().includes(v));
     case "sector": return rows.some(r => String(r?.sector || "").toLowerCase().includes(v));

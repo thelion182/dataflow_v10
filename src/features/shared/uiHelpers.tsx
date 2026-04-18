@@ -21,15 +21,18 @@ export function typeBadge(type?: string) {
 
 export function statusBadgeClasses(key: string) {
   switch (key) {
-    case "cargado": return "bg-amber-500/30 text-amber-200 border border-amber-400/30";
+    case "cargado":       return "bg-amber-500/30 text-amber-200 border border-amber-400/30";
+    case "con_dudas":     return "bg-amber-500/30 text-amber-200 border border-amber-400/40";
+    case "observado":     return "bg-rose-500/20 text-rose-300 border border-rose-500/30";
     case "duda_respondida": return "bg-teal-500/20 text-teal-300 border border-teal-500/30";
-    case "descargado": return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
-    case "listo": return "bg-sky-500/20 text-sky-300 border border-sky-500/30";
-    case "actualizado": return "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
-    case "observado": return "bg-rose-500/20 text-rose-300 border border-rose-500/30";
-    case "sustituido": return "bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30";
-    case "eliminado": return "bg-red-600/20 text-red-300 border border-red-600/30";
-    default: return "bg-neutral-800 text-neutral-300 border border-neutral-700";
+    case "pend_procesar": return "bg-orange-500/20 text-orange-300 border border-orange-500/30";
+    case "procesado":     return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+    case "descargado":    return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+    case "listo":         return "bg-sky-500/20 text-sky-300 border border-sky-500/30";
+    case "actualizado":   return "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
+    case "sustituido":    return "bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30";
+    case "eliminado":     return "bg-red-600/20 text-red-300 border border-red-600/30";
+    default:              return "bg-neutral-800 text-neutral-300 border border-neutral-700";
   }
 }
 

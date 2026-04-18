@@ -37,6 +37,18 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+function getFileType(name, mimeType) {
+  const ext = (name || '').split('.').pop()?.toLowerCase() || '';
+  const extMap = {
+    pdf: 'PDF', txt: 'TXT', csv: 'CSV',
+    xls: 'XLS', xlsx: 'XLSX', doc: 'DOC', docx: 'DOCX',
+    jpg: 'JPG', jpeg: 'JPG', png: 'PNG', gif: 'GIF',
+    zip: 'ZIP', rar: 'RAR', '7z': '7Z',
+    xml: 'XML', json: 'JSON',
+  };
+  return extMap[ext] || ext.toUpperCase() || 'FILE';
+}
+
 function mapFile(f) {
   return {
     id:             f.id,
@@ -44,6 +56,7 @@ function mapFile(f) {
     name:           f.name,
     size:           parseInt(f.size),
     mimeType:       f.mime_type,
+    fileType:       getFileType(f.name, f.mime_type),
     status:         f.status,
     statusOverride: f.status_override,
     sector:         f.sector,
@@ -288,6 +301,27 @@ router.get('/:id/download', requireAuth, async (req, res) => {
        VALUES ($1, 'descarga', $2, $3, $4)`,
       [file.id, req.session.userId, req.session.displayName, `Descargado por usuario`]
     );
+
+    // Registrar en download_logs
+    await pool.query(
+      `INSERT INTO download_logs (user_id, file_id, file_name, downloaded_at)
+       VALUES ($1, $2, $3, NOW())`,
+      [req.session.userId, file.id, file.name]
+    );
+
+    // Marcar archivo como descargado para este usuario
+    await pool.query(
+      `INSERT INTO downloaded_files (user_id, file_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [req.session.userId, file.id]
+    );
+
+    // Notificar via SSE a todos los usuarios
+    broadcast('file:downloaded', {
+      fileId:       file.id,
+      fileName:     file.name,
+      downloadedBy: req.session.displayName || req.session.userId,
+      downloadedAt: new Date().toISOString(),
+    });
 
     // nginx X-Accel-Redirect (producción) — ver BACKEND_GUIDE.md sección 7
     // res.setHeader('X-Accel-Redirect', `/files-privados/${file.storage_path}`);
