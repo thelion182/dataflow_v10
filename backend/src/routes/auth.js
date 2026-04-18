@@ -137,18 +137,21 @@ router.post('/change-password', async (req, res) => {
   }
   try {
     const result = await pool.query(
-      'SELECT password_hash FROM users WHERE id = $1',
+      'SELECT password_hash, must_change_password FROM users WHERE id = $1',
       [req.session.userId]
     );
     const user = result.rows[0];
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    const valid = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!valid) return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+    // Si el usuario tiene cambio forzado, no se exige contraseña actual
+    if (!user.must_change_password) {
+      const valid = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!valid) return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+    }
 
     const newHash = await bcrypt.hash(newPassword, 10);
     await pool.query(
-      'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',
+      'UPDATE users SET password_hash = $1, must_change_password = false, login_attempts = 0, locked_until = NULL WHERE id = $2',
       [newHash, req.session.userId]
     );
     res.json({ ok: true });

@@ -1413,7 +1413,7 @@ async function handleChangePassword(e?: React.FormEvent) {
   }
   if (!me?.id) return;
   try {
-    const res: any = await adminResetPassword(me.id, next);
+    const res: any = await changePassword(me.id, "", next);
     if (!res?.ok) { setLoginError(res?.error || "No se pudo cambiar la contraseña."); return; }
     // Limpiar mustChangePassword localmente
     const users = loadUsers();
