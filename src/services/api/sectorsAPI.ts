@@ -17,16 +17,14 @@ function getCurrentRole(): string {
 }
 
 export async function getAllSectors(): Promise<any[]> {
-  try {
-    return await apiGet('/sectors');
-  } catch (err) {
-    console.error('[sectorsAPI] getAllSectors:', err);
-    return [];
-  }
+  const data = await apiGet('/sectors');
+  return Array.isArray(data) ? data : [];
 }
 
 export async function saveSectors(sectors: any[]): Promise<void> {
   if (!['admin', 'superadmin'].includes(getCurrentRole())) return;
+  // Nunca enviar lista vacía al backend — podría borrar todo en la DB
+  if (!sectors || sectors.length === 0) return;
   try {
     await apiPut('/sectors', sectors);
   } catch (err) {
@@ -35,16 +33,13 @@ export async function saveSectors(sectors: any[]): Promise<void> {
 }
 
 export async function getAllSites(): Promise<any[]> {
-  try {
-    return await apiGet('/sites');
-  } catch (err) {
-    console.error('[sectorsAPI] getAllSites:', err);
-    return [];
-  }
+  const data = await apiGet('/sites');
+  return Array.isArray(data) ? data : [];
 }
 
 export async function saveSites(sites: any[]): Promise<void> {
   if (!['admin', 'superadmin'].includes(getCurrentRole())) return;
+  if (!sites || sites.length === 0) return;
   try {
     await apiPut('/sites', sites);
   } catch (err) {
