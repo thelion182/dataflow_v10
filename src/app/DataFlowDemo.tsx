@@ -2808,9 +2808,7 @@ return (
       <footer className="text-xs text-neutral-500 pt-2 pb-6 text-center">
         Versión beta · Desarrollado por{" "}
         <span className="font-semibold text-neutral-300">Leonel Figuera</span>{" "}
-        para la <span className="font-semibold text-neutral-300">Gerencia de RRHH</span>.{" "}
-        Backend e integración corporativa a cargo de{" "}
-        <span className="font-semibold text-neutral-300">Cómputos</span>.
+        para la <span className="font-semibold text-neutral-300">Gerencia de RRHH</span>.
       </footer>
     </div>
             {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
