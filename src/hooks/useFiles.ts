@@ -12,6 +12,37 @@ import {
   answeredFuncionarioDoubtsCount, answeredArchivoDoubtsCount,
 } from '../features/observations/observationHelpers';
 
+const USE_API = import.meta.env.VITE_USE_API === 'true';
+const _rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_URL = _rawApiUrl.replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window.location.hostname}$2`);
+
+/**
+ * Sube el binario al backend y devuelve el objeto de archivo guardado.
+ * Se usa en modo API para archivo nuevo y para reemplazo de versión.
+ */
+async function uploadBinaryToBackend(
+  file: File,
+  opts: { fileId?: string; periodId?: string; sector?: string; siteCode?: string }
+): Promise<any | null> {
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    if (opts.fileId)   form.append('fileId',   opts.fileId);
+    if (opts.periodId) form.append('periodId', opts.periodId);
+    if (opts.sector)   form.append('sector',   opts.sector);
+    if (opts.siteCode) form.append('siteCode', opts.siteCode);
+    const res = await fetch(`${API_URL}/files/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export function useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve, guessSectorForFileName, guessSiteForFileName }: any) {
   // skipSave: true en API mode (async) hasta que cargue datos; false inmediato en localStorage (sync)
   const skipSave = useRef(true);
@@ -357,7 +388,8 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
 
     const lower = (s: string) => (s || "").toLowerCase();
 
-    list.forEach((file) => {
+    // En API mode procesamos async para poder subir el binario antes de actualizar estado
+    const processFile = async (file: File) => {
       const existing = files.find(
         (x) => x.periodId === selectedPeriodId && lower(x.name) === lower(file.name)
           && x.statusOverride !== 'eliminado' && !x.eliminated
@@ -377,52 +409,70 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
 
       const opts = { ...(siteOpts || {}), ...(sectorOpts || {}) };
 
-        if (existing && myPerms.actions.bumpVersion) {
-          // Sustituye el archivo existente actualizando su versión en la misma fila
-          const nextVer = (Number.isFinite(existing.version) ? existing.version : 1) + 1;
+      if (existing && myPerms.actions.bumpVersion) {
+        // Sustituye el archivo existente actualizando su versión en la misma fila
+        const nextVer = (Number.isFinite(existing.version) ? existing.version : 1) + 1;
 
-          const ok = confirm(
-            `Ya existe "${file.name}" en esta liquidación (v${existing.version || 1}).\n` +
-            `¿Querés reemplazarlo con esta nueva versión (v${nextVer})?`
-          );
+        const ok = confirm(
+          `Ya existe "${file.name}" en esta liquidación (v${existing.version || 1}).\n` +
+          `¿Querés reemplazarlo con esta nueva versión (v${nextVer})?`
+        );
 
-          if (ok) {
-            const newBlobUrl = safeObjectURL(file as any);
-            updateFile(existing.id, (f: any) =>
-              addHistoryEntry(
-                {
-                  ...f,
-                  version: nextVer,
-                  size: file.size,
-                  blobUrl: newBlobUrl,
-                  status: "actualizado",
-                  at: nowISO(),
-                  byUsername: me?.username || "sistema",
-                  byUserId: me?.id || "",
-                  // preserve sector/site
-                  sectorId: f.sectorId ?? (opts as any)?.sectorId ?? null,
-                  sectorName: f.sectorName ?? (opts as any)?.sectorName ?? null,
-                  siteId: f.siteId ?? (opts as any)?.siteId ?? null,
-                  siteName: f.siteName ?? (opts as any)?.siteName ?? null,
-                },
-                `Nueva versión v${nextVer} subida por ${me?.username || "sistema"}`
-              )
-            );
-            publishEvent({
-              type: "version_bumped",
-              title: `Nueva versión (v${nextVer})`,
-              message: `${me?.username || "sistema"} reemplazó ${file.name} con v${nextVer}`,
+        if (ok) {
+          let storagePath = existing.storagePath || null;
+          if (USE_API) {
+            const saved = await uploadBinaryToBackend(file, {
               fileId: existing.id,
               periodId: selectedPeriodId,
+              sector: (opts as any)?.sectorId || existing.sectorId || undefined,
+              siteCode: (opts as any)?.siteId || existing.siteId || undefined,
             });
+            if (saved?.storagePath) storagePath = saved.storagePath;
           }
-
-          return;
-        } else {
+          const newBlobUrl = safeObjectURL(file as any);
+          updateFile(existing.id, (f: any) =>
+            addHistoryEntry(
+              {
+                ...f,
+                version: nextVer,
+                size: file.size,
+                blobUrl: newBlobUrl,
+                storagePath: storagePath || f.storagePath,
+                status: "actualizado",
+                at: nowISO(),
+                byUsername: me?.username || "sistema",
+                byUserId: me?.id || "",
+                sectorId: f.sectorId ?? (opts as any)?.sectorId ?? null,
+                sectorName: f.sectorName ?? (opts as any)?.sectorName ?? null,
+                siteId: f.siteId ?? (opts as any)?.siteId ?? null,
+                siteName: f.siteName ?? (opts as any)?.siteName ?? null,
+              },
+              `Nueva versión v${nextVer} subida por ${me?.username || "sistema"}`
+            )
+          );
+          publishEvent({
+            type: "version_bumped",
+            title: `Nueva versión (v${nextVer})`,
+            message: `${me?.username || "sistema"} reemplazó ${file.name} con v${nextVer}`,
+            fileId: existing.id,
+            periodId: selectedPeriodId,
+          });
+        }
+      } else {
         // alta normal
-        createNewFile(file, opts);
+        let backendFile: any = null;
+        if (USE_API) {
+          backendFile = await uploadBinaryToBackend(file, {
+            periodId: selectedPeriodId,
+            sector: (opts as any)?.sectorId || undefined,
+            siteCode: (opts as any)?.siteId || undefined,
+          });
+        }
+        createNewFile(file, { ...opts, backendFile });
       }
-    });
+    };
+
+    list.forEach((file) => processFile(file as File));
 
 
 
@@ -431,9 +481,13 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
 
   function createNewFile(
     file: { name: string; size: number; type?: string },
-    opts?: { sectorId?: string; sectorName?: string; noNews?: boolean; version?: number; seriesKey?: string; siteId?: string; siteName?: string }
+    opts?: { sectorId?: string; sectorName?: string; noNews?: boolean; version?: number; seriesKey?: string; siteId?: string; siteName?: string; backendFile?: any }
   ) {
-    const id = uuid();
+    // Si el backend ya subió el archivo, usamos su ID y storagePath
+    const backendFile = opts?.backendFile;
+    const id = backendFile?.id || uuid();
+    const storagePath = backendFile?.storagePath || null;
+
     const hasBlob = file.size && file.size > 0;
     const blobUrl = hasBlob ? safeObjectURL(file as any) : undefined;
 
@@ -450,6 +504,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
       at: nowISO(),
       notes: "",
       blobUrl,
+      storagePath,
       history: [],
       observations: [],
       periodId: selectedPeriodId,

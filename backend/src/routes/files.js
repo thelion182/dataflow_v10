@@ -158,33 +158,55 @@ router.post('/upload', requireRole('rrhh', 'admin', 'superadmin'),
   const relativePath = path.relative(UPLOAD_DIR, req.file.path).replace(/\\/g, '/');
 
   try {
+    // Detectar si es archivo nuevo o reemplazo de versión
+    const existing = await pool.query('SELECT id, version FROM files WHERE id = $1', [id]);
+    const isVersionBump = existing.rows.length > 0;
+    const newVersion = isVersionBump ? (existing.rows[0].version || 1) + 1 : 1;
+
     await pool.query(
       `INSERT INTO files (id, period_id, name, size, mime_type, status,
                           sector, site_code, uploader_id, uploader_name,
                           version, storage_path)
-       VALUES ($1,$2,$3,$4,$5,'cargado',$6,$7,$8,$9,1,$10)`,
+       VALUES ($1,$2,$3,$4,$5,'cargado',$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (id) DO UPDATE SET
+         name         = EXCLUDED.name,
+         size         = EXCLUDED.size,
+         mime_type    = EXCLUDED.mime_type,
+         status       = 'actualizado',
+         version      = EXCLUDED.version,
+         storage_path = EXCLUDED.storage_path,
+         updated_at   = NOW()`,
       [id, periodId, req.file.originalname, req.file.size, req.file.mimetype,
        sector || null, siteCode || null,
        req.session.userId, req.session.displayName || req.session.userId,
-       relativePath]
+       newVersion, relativePath]
     );
 
     // Registrar en audit log
+    const action = isVersionBump ? `Nueva versión v${newVersion}: ${req.file.originalname}` : `Archivo subido: ${req.file.originalname}`;
     await pool.query(
       `INSERT INTO file_history (file_id, action, by_user_id, by_username, details)
        VALUES ($1, 'subida', $2, $3, $4)`,
-      [id, req.session.userId, req.session.displayName, `Archivo subido: ${req.file.originalname}`]
+      [id, req.session.userId, req.session.displayName, action]
     );
 
     const result = await pool.query('SELECT * FROM files WHERE id = $1', [id]);
     const uploaded = mapFile(result.rows[0]);
 
-    // Notificar a todos los clientes conectados via SSE
-    broadcast('file:uploaded', {
-      fileName:     uploaded.name,
-      uploaderName: req.session.displayName || req.session.userId,
-      periodId:     uploaded.periodId,
-    });
+    // Notificar via SSE
+    if (isVersionBump) {
+      broadcast('file:status', {
+        fileId:   uploaded.id,
+        fileName: uploaded.name,
+        status:   `v${newVersion}`,
+      });
+    } else {
+      broadcast('file:uploaded', {
+        fileName:     uploaded.name,
+        uploaderName: req.session.displayName || req.session.userId,
+        periodId:     uploaded.periodId,
+      });
+    }
 
     res.status(201).json(uploaded);
   } catch (err) {
