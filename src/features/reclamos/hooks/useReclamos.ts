@@ -59,28 +59,28 @@ export function useReclamos({ meId }: { meId?: string } = {}) {
     return () => window.removeEventListener('dataflow:reclamos:refresh', handler);
   }, []);
 
-  const crear = useCallback((data: Reclamo) => {
-    db.reclamos.create(data);
+  const crear = useCallback(async (data: Reclamo) => {
+    await db.reclamos.create(data);
     reload();
   }, []);
 
-  const actualizar = useCallback((id: string, changes: Partial<Reclamo>) => {
-    db.reclamos.update(id, changes);
+  const actualizar = useCallback(async (id: string, changes: Partial<Reclamo>) => {
+    await db.reclamos.update(id, changes);
     reload();
   }, []);
 
   const eliminar = useCallback(
-    (id: string, usuarioId: string, usuarioNombre: string, nota?: string) => {
-      db.reclamos.softDelete(id, usuarioId, usuarioNombre, nota);
+    async (id: string, usuarioId: string, usuarioNombre: string, nota?: string) => {
+      await db.reclamos.softDelete(id, usuarioId, usuarioNombre, nota);
       reload();
     },
     []
   );
 
   const eliminarLote = useCallback(
-    (ids: string[], usuarioId: string, usuarioNombre: string) => {
+    async (ids: string[], usuarioId: string, usuarioNombre: string) => {
       for (const id of ids) {
-        db.reclamos.softDelete(id, usuarioId, usuarioNombre);
+        await db.reclamos.softDelete(id, usuarioId, usuarioNombre);
       }
       reload();
     },
@@ -88,26 +88,26 @@ export function useReclamos({ meId }: { meId?: string } = {}) {
   );
 
   const cambiarEstado = useCallback(
-    (
+    async (
       id: string,
       estado: EstadoReclamo,
       usuarioId: string,
       usuarioNombre: string,
       nota?: string
     ) => {
-      db.reclamos.updateEstado(id, estado, usuarioId, usuarioNombre, nota);
+      await db.reclamos.updateEstado(id, estado, usuarioId, usuarioNombre, nota);
       reload();
     },
     []
   );
 
-  const agregarNotificacion = useCallback((id: string, notif: any) => {
-    db.reclamos.addNotificacion(id, notif);
+  const agregarNotificacion = useCallback(async (id: string, notif: any) => {
+    await db.reclamos.addNotificacion(id, notif);
     reload();
   }, []);
 
-  const agregarNotaInterna = useCallback((id: string, nota: any) => {
-    db.reclamos.addNotaInterna(id, nota);
+  const agregarNotaInterna = useCallback(async (id: string, nota: any) => {
+    await db.reclamos.addNotaInterna(id, nota);
     reload();
   }, []);
 

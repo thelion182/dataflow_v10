@@ -2067,16 +2067,18 @@ return (
                   Avanzado
                 </div>
 
-                <button
-                  onClick={() => {
-                    setMenuOpen(null);
-                    clearAll();
-                  }}
-                  className={MENU_ITEM}
-                  title="Reiniciar datos de la demo (localStorage)"
-                >
-                  🔄 Reset demo
-                </button>
+                {import.meta.env.VITE_USE_API !== 'true' && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(null);
+                      clearAll();
+                    }}
+                    className={MENU_ITEM}
+                    title="Reiniciar datos de la demo (localStorage)"
+                  >
+                    🔄 Reset demo
+                  </button>
+                )}
               </div>
             )}
           </div>

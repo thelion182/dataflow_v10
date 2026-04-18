@@ -22,7 +22,12 @@ VALUES
    '$2a$10$hVWXMb3yM6j.2C8OqYlHge4v8p3pNdNk0P.C3fAoQ7Tg.2dkHaLhe',  -- Super-1234
    FALSE,
    TRUE)
-ON CONFLICT (username) DO NOTHING;
+ON CONFLICT (username) DO UPDATE SET
+  password_hash        = EXCLUDED.password_hash,
+  must_change_password = EXCLUDED.must_change_password,
+  login_attempts       = 0,
+  locked_until         = NULL,
+  active               = TRUE;
 
 -- ─── Liquidaciones de ejemplo ──────────────────────────────────────────────
 
