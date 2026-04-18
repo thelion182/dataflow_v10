@@ -48,6 +48,16 @@ export function useSSE({ meId }: { meId?: string } = {}) {
       refreshFiles();
     });
 
+    es.addEventListener('file:observation', (e: any) => {
+      const d = JSON.parse(e.data);
+      if (d.type === 'nueva_duda') {
+        toast('Nueva duda', `${d.byUser} registró una duda en "${d.fileName}"`);
+      } else {
+        toast('Duda respondida', `${d.byUser} respondió una duda en "${d.fileName}"`);
+      }
+      refreshFiles();
+    });
+
     es.addEventListener('reclamo:created', (e: any) => {
       const d = JSON.parse(e.data);
       toast('Nuevo reclamo', `${d.ticket} — ${d.nombreFuncionario}`);

@@ -95,14 +95,29 @@ router.put('/', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Obtener IDs y versiones existentes para detectar nuevos y bumps de versión
-    const existingResult = await client.query('SELECT id, version FROM files');
+    // Obtener IDs, versiones y observaciones existentes
+    const existingResult = await client.query('SELECT id, version, observations FROM files');
     const existingMap = new Map(existingResult.rows.map(r => [r.id, r]));
 
     for (const f of files) {
       const existing = existingMap.get(f.id);
       const isNew = !existing;
       const isVersionBump = !isNew && (f.version || 1) > (existing.version || 1);
+
+      // Detectar cambios en observaciones
+      const oldObs = existing?.observations || [];
+      const newObs = f.observations || [];
+      const oldObsCount = Array.isArray(oldObs) ? oldObs.length : (oldObs?.length || 0);
+      const newObsCount = Array.isArray(newObs) ? newObs.length : 0;
+      const hasNewThread = !isNew && newObsCount > oldObsCount;
+
+      // Detectar si alguna fila de observación fue respondida
+      let hasNewAnswer = false;
+      if (!isNew && !hasNewThread && Array.isArray(newObs) && Array.isArray(oldObs)) {
+        const oldAnswered = oldObs.reduce((n, t) => n + (t.rows || []).filter(r => r.answered).length, 0);
+        const newAnswered = newObs.reduce((n, t) => n + (t.rows || []).filter(r => r.answered).length, 0);
+        hasNewAnswer = newAnswered > oldAnswered;
+      }
       await client.query(
         `INSERT INTO files (id, period_id, name, size, mime_type, status, status_override,
                             sector, site_code, uploader_id, uploader_name, version,
@@ -139,6 +154,20 @@ router.put('/', requireAuth, async (req, res) => {
           fileId:   f.id,
           fileName: f.name,
           status:   `v${f.version}`,
+        });
+      } else if (hasNewThread) {
+        broadcast('file:observation', {
+          fileId:   f.id,
+          fileName: f.name,
+          type:     'nueva_duda',
+          byUser:   req.session.displayName || req.session.userId,
+        });
+      } else if (hasNewAnswer) {
+        broadcast('file:observation', {
+          fileId:   f.id,
+          fileName: f.name,
+          type:     'respuesta',
+          byUser:   req.session.displayName || req.session.userId,
         });
       }
     }
