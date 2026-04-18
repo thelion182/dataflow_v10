@@ -1419,6 +1419,7 @@ async function handleChangePassword(e?: React.FormEvent) {
     const users = loadUsers();
     const idx = users.findIndex((u: any) => u.id === me.id);
     if (idx >= 0) { users[idx].mustChangePassword = false; saveUsers(users); }
+    setSessionState(getSession()); // fuerza re-derive de me con mustChangePassword=false
     setChangingPwd(false);
     setNewPwd("");
     setLoginError("");
