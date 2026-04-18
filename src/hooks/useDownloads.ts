@@ -227,7 +227,17 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
   
     // Si el usuario que descarga es de Sueldos → asignar numeración propia
     if (meRole === "sueldos") {
-      const freshMe = getUserById(me.id);
+      let freshMe = getUserById(me.id);
+      if (USE_API) {
+        try {
+          const res = await fetch(`${API_URL}/users/${me.id}`, { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            // Aseguramos que range sean números
+            freshMe = { ...freshMe, ...data, rangeStart: Number(data.rangeStart), rangeEnd: Number(data.rangeEnd) };
+          }
+        } catch {}
+      }
 
       const subRanges = getUserSubRangesForDownloads(freshMe);
       if (!subRanges) {
@@ -395,6 +405,15 @@ async function downloadSelectedAsZip() {
 
   if (isSueldos) {
     freshMe = getUserById(me.id);
+    if (USE_API) {
+      try {
+        const res = await fetch(`${API_URL}/users/${me.id}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          freshMe = { ...freshMe, ...data, rangeStart: Number(data.rangeStart), rangeEnd: Number(data.rangeEnd) };
+        }
+      } catch {}
+    }
     subRanges = getUserSubRangesForDownloads(freshMe);
     if (!subRanges) {
       alert("No tenés rango asignado o el rango es inválido. Consultá al administrador.");
