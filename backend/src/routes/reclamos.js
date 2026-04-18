@@ -64,6 +64,7 @@ async function getReclamoConRelaciones(id, client) {
     emisorNombre:      r.emisor_nombre,
     estado:            r.estado,
     eliminado:         r.eliminado,
+    fechaEmision:      r.created_at,           // alias esperado por el frontend
     createdAt:         r.created_at,
     updatedAt:         r.updated_at,
     historialEstados:  rHistorial.rows,

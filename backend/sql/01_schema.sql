@@ -100,9 +100,22 @@ CREATE TABLE IF NOT EXISTS files (
   eliminated      BOOLEAN DEFAULT FALSE,
   eliminated_by   UUID REFERENCES users(id) ON DELETE SET NULL,
   eliminated_at   TIMESTAMPTZ,
+  observations    JSONB DEFAULT '[]'::jsonb, -- dudas y arreglos (trazabilidad)
+  history         JSONB DEFAULT '[]'::jsonb, -- historial de cambios de estado
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migración segura: agrega columnas si no existen (para DBs creadas antes de esta versión)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='files' AND column_name='observations') THEN
+    ALTER TABLE files ADD COLUMN observations JSONB DEFAULT '[]'::jsonb;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='files' AND column_name='history') THEN
+    ALTER TABLE files ADD COLUMN history JSONB DEFAULT '[]'::jsonb;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_files_period ON files(period_id);
 CREATE INDEX IF NOT EXISTS idx_files_status ON files(status);

@@ -58,6 +58,8 @@ function mapFile(f) {
     eliminatedAt:   f.eliminated_at,
     createdAt:      f.created_at,
     updatedAt:      f.updated_at,
+    observations:   f.observations  || [],
+    history:        f.history        || [],
   };
 }
 
@@ -104,8 +106,9 @@ router.put('/', requireAuth, async (req, res) => {
       await client.query(
         `INSERT INTO files (id, period_id, name, size, mime_type, status, status_override,
                             sector, site_code, uploader_id, uploader_name, version,
-                            parent_id, storage_path, eliminated, eliminated_by, eliminated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                            parent_id, storage_path, eliminated, eliminated_by, eliminated_at,
+                            observations, history)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
          ON CONFLICT (id) DO UPDATE SET
            name           = EXCLUDED.name,
            version        = EXCLUDED.version,
@@ -115,12 +118,15 @@ router.put('/', requireAuth, async (req, res) => {
            eliminated     = EXCLUDED.eliminated,
            eliminated_by  = EXCLUDED.eliminated_by,
            eliminated_at  = EXCLUDED.eliminated_at,
+           observations   = EXCLUDED.observations,
+           history        = EXCLUDED.history,
            updated_at     = NOW()`,
         [f.id, f.periodId, f.name, f.size, f.mimeType, f.status, f.statusOverride,
          f.sector, f.siteCode, f.uploaderId || req.session.userId,
          f.uploaderName || req.session.displayName || req.session.userId,
          f.version || 1, f.parentId || null, f.storagePath || null,
-         !!f.eliminated, f.eliminatedBy || null, f.eliminatedAt || null]
+         !!f.eliminated, f.eliminatedBy || null, f.eliminatedAt || null,
+         JSON.stringify(f.observations || []), JSON.stringify(f.history || [])]
       );
       if (isNew) {
         broadcast('file:uploaded', {

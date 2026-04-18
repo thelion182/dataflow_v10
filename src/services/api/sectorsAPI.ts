@@ -11,6 +11,11 @@
  */
 import { apiGet, apiPut } from './client';
 
+function getCurrentRole(): string {
+  try { return JSON.parse(localStorage.getItem('fileflow-session') || '{}')?.role || ''; }
+  catch { return ''; }
+}
+
 export async function getAllSectors(): Promise<any[]> {
   try {
     return await apiGet('/sectors');
@@ -21,6 +26,7 @@ export async function getAllSectors(): Promise<any[]> {
 }
 
 export async function saveSectors(sectors: any[]): Promise<void> {
+  if (!['admin', 'superadmin'].includes(getCurrentRole())) return;
   try {
     await apiPut('/sectors', sectors);
   } catch (err) {
@@ -38,6 +44,7 @@ export async function getAllSites(): Promise<any[]> {
 }
 
 export async function saveSites(sites: any[]): Promise<void> {
+  if (!['admin', 'superadmin'].includes(getCurrentRole())) return;
   try {
     await apiPut('/sites', sites);
   } catch (err) {

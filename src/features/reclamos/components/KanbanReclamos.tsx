@@ -31,7 +31,7 @@ const CAUSALES_RECHAZO = [
 function diasSinMovimiento(r: Reclamo): number {
   const last = r.historialEstados.length > 0
     ? r.historialEstados[r.historialEstados.length - 1].fecha
-    : r.fechaEmision;
+    : (r.fechaEmision || r.createdAt || new Date().toISOString());
   return Math.floor((Date.now() - new Date(last).getTime()) / 86_400_000);
 }
 

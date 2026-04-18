@@ -161,7 +161,7 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
   const cntEnProceso = activos.filter(r => r.estado === 'En proceso').length;
   const hoy = new Date();
   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString();
-  const cntEsteMes = activos.filter(r => r.fechaEmision >= inicioMes).length;
+  const cntEsteMes = activos.filter(r => (r.fechaEmision || r.createdAt || '') >= inicioMes).length;
 
   return (
     <div className="space-y-4">

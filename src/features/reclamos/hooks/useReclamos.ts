@@ -118,8 +118,9 @@ export function useReclamos({ meId }: { meId?: string } = {}) {
       if (filtros.tipo && r.tipoReclamo !== filtros.tipo) return false;
       if (filtros.liquidacion && r.liquidacion !== filtros.liquidacion) return false;
       if (filtros.paraLiquidacion && (r as any).paraLiquidacion !== filtros.paraLiquidacion) return false;
-      if (filtros.desde && r.fechaEmision < filtros.desde) return false;
-      if (filtros.hasta && r.fechaEmision > filtros.hasta + 'T23:59:59') return false;
+      const fe = r.fechaEmision || r.createdAt || '';
+      if (filtros.desde && fe < filtros.desde) return false;
+      if (filtros.hasta && fe > filtros.hasta + 'T23:59:59') return false;
       if (filtros.busqueda) {
         const q = filtros.busqueda.toLowerCase();
         if (
@@ -141,7 +142,7 @@ export function useReclamos({ meId }: { meId?: string } = {}) {
     const rows = filtrados.map((r) => [
       r.ticket, r.nroFuncionario, r.nombreFuncionario, r.cargo,
       r.centroCosto, r.liquidacion, r.tipoReclamo, r.causal,
-      r.estado, r.fechaEmision.slice(0, 10), r.emisorNombre,
+      r.estado, (r.fechaEmision || r.createdAt || '').slice(0, 10), r.emisorNombre,
     ]);
     const csv = [cols, ...rows]
       .map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))

@@ -2842,6 +2842,7 @@ return (
             setPermEdit({ open: true, userId })
           }
           meRole={meRole}
+          onBorrarArchivosLiquidacion={() => hardResetPeriod(selectedPeriodId)}
         />
       )}
 

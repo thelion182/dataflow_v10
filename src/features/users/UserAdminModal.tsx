@@ -19,12 +19,15 @@ export function UserAdminModal({
   onClose,
   onOpenPermissions,
   meRole,
+  onBorrarArchivosLiquidacion,
 }: {
   onClose: () => void;
   onOpenPermissions: (userId: string) => void;
   meRole?: string;
+  onBorrarArchivosLiquidacion?: () => void;
 }) {
   const isSuperAdmin = meRole === "superadmin";
+  const isAdminOrSuper = meRole === "admin" || meRole === "superadmin";
   const [q, setQ] = useState("");
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<"rrhh" | "sueldos" | "admin">("rrhh");
@@ -245,7 +248,11 @@ export function UserAdminModal({
                             <button onClick={() => onOpenPermissions(u.id)} className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs">Permisos</button>
                             <button onClick={() => resetPass(u)} className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs">Reset pass</button>
                             <button onClick={() => toggleActive(u)} className="px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-xs">{u.active ? "Desactivar" : "Activar"}</button>
-                            <button onClick={() => removeUser(u)} className="px-2 py-1 rounded-lg bg-red-900/30 border border-red-800 hover:bg-red-900/50 text-xs">Eliminar</button>
+                            {(u.role === "rrhh" || u.role === "sueldos") && isAdminOrSuper && onBorrarArchivosLiquidacion ? (
+                              <button onClick={() => { if (confirm("¿Borrar TODOS los archivos de la liquidación actual? Esta acción no se puede deshacer.")) onBorrarArchivosLiquidacion(); }} className="px-2 py-1 rounded-lg bg-orange-900/30 border border-orange-800 hover:bg-orange-900/50 text-xs">Borrar archivos liquidación</button>
+                            ) : (
+                              <button onClick={() => removeUser(u)} className="px-2 py-1 rounded-lg bg-red-900/30 border border-red-800 hover:bg-red-900/50 text-xs">Eliminar</button>
+                            )}
                           </div>
                         </td>
                       </tr>

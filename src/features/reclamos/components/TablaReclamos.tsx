@@ -22,7 +22,7 @@ interface Props {
 function diasSinMovimiento(r: Reclamo): number {
   const last = r.historialEstados.length > 0
     ? r.historialEstados[r.historialEstados.length - 1].fecha
-    : r.fechaEmision;
+    : (r.fechaEmision || r.createdAt || new Date().toISOString());
   return Math.floor((Date.now() - new Date(last).getTime()) / 86_400_000);
 }
 
@@ -340,7 +340,7 @@ export function TablaReclamos({
                     <AntiguedadBadge r={r} />
                   </div>
                 </td>
-                <td className="px-4 py-2.5 text-neutral-500 text-xs">{r.fechaEmision.slice(0, 10).split('-').reverse().join('/')}</td>
+                <td className="px-4 py-2.5 text-neutral-500 text-xs">{(r.fechaEmision || r.createdAt || '').slice(0, 10).split('-').reverse().join('/')}</td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-1 justify-end">
                     <button onClick={() => onVer(r)} className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs text-neutral-300">Ver</button>

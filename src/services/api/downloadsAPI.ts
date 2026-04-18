@@ -20,6 +20,11 @@
  */
 import { apiGet, apiPut } from './client';
 
+function getCurrentRole(): string {
+  try { return JSON.parse(localStorage.getItem('fileflow-session') || '{}')?.role || ''; }
+  catch { return ''; }
+}
+
 export async function getCounters(): Promise<Record<string, number>> {
   try {
     return await apiGet('/downloads/counters');
@@ -55,6 +60,7 @@ export async function saveDownloadedFiles(files: Record<string, boolean>): Promi
 }
 
 export async function getLogs(): Promise<any[]> {
+  if (!['admin', 'superadmin'].includes(getCurrentRole())) return [];
   try {
     return await apiGet('/downloads/logs');
   } catch (err) {
@@ -64,6 +70,7 @@ export async function getLogs(): Promise<any[]> {
 }
 
 export async function saveLogs(logs: any[]): Promise<void> {
+  if (!['admin', 'superadmin'].includes(getCurrentRole())) return;
   try {
     await apiPut('/downloads/logs', logs);
   } catch (err) {

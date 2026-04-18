@@ -15,6 +15,11 @@
  */
 import { apiGet, apiPut } from './client';
 
+function getCurrentRole(): string {
+  try { return JSON.parse(localStorage.getItem('fileflow-session') || '{}')?.role || ''; }
+  catch { return ''; }
+}
+
 export async function getAll(): Promise<any[]> {
   try {
     return await apiGet('/periods');
@@ -25,6 +30,7 @@ export async function getAll(): Promise<any[]> {
 }
 
 export async function saveAll(periods: any[]): Promise<void> {
+  if (!['admin', 'superadmin'].includes(getCurrentRole())) return;
   try {
     await apiPut('/periods', periods);
   } catch (err) {

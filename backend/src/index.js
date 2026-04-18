@@ -69,6 +69,7 @@ const filesRouter     = require('./routes/files');
 const { router: downloadsRouter } = require('./routes/downloads');
 const reclamosRouter  = require('./routes/reclamos');
 const { router: eventsRouter } = require('./routes/events');
+const auditRouter     = require('./routes/audit');
 
 app.use('/api/auth',      authRouter);
 app.use('/api/users',     usersRouter);
@@ -79,6 +80,7 @@ app.use('/api/files',     filesRouter);
 app.use('/api/downloads', downloadsRouter);
 app.use('/api/reclamos',  reclamosRouter);
 app.use('/api/events',    eventsRouter);       // SSE — notificaciones en tiempo real
+app.use('/api/audit',     auditRouter);        // log de auditoría del sistema
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
