@@ -239,6 +239,22 @@ useEffect(() => {
     } catch (err) {
       console.error("No se pudo inicializar el admin demo:", err);
     }
+    // En modo API: sincronizar mustChangePassword desde el backend al recargar
+    if (import.meta.env.VITE_USE_API === 'true') {
+      try {
+        const res = await fetch(`${_apiBase}/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+          const apiUser = await res.json();
+          const users = loadUsers();
+          const idx = users.findIndex((u: any) => u.id === apiUser.id);
+          if (idx >= 0) {
+            users[idx].mustChangePassword = !!apiUser.mustChangePassword;
+            saveUsers(users);
+          }
+          setSessionState(getSession());
+        }
+      } catch {}
+    }
     setBootReady(true);                         // ⟵ habilita el botón
     refreshUsersSnap();                         // ⟵ carga usuarios para rrhhUsers
   })();
