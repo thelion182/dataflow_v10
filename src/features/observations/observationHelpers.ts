@@ -77,14 +77,27 @@ export function hasPendingDoubts(file: any) {
   return pendingCount(file) > 0;
 }
 
+/** Dudas respondidas por RRHH pero aún no procesadas/marcadas por Sueldos */
+export function respondidaNoProcessadaCount(file: any) {
+  const obs = (file?.observations || []).filter((t: any) => !t?.deleted);
+  return obs
+    .flatMap((t: any) => t.rows || [])
+    .filter((r: any) => !!r.answered && !r.processed).length;
+}
+
+export function hasRespondidaNoProcessada(file: any) {
+  return respondidaNoProcessadaCount(file) > 0;
+}
+
 export function matchesDoubtFilter(file: any, mode: any, value: any) {
   if (mode === "all") return true;
   const rows = getAllObservationRows(file);
   const v = String(value || "").trim().toLowerCase();
   if (mode === "con")  return rows.some(r => !r?.answered);
   if (mode === "sin")  return rows.every(r => !!r?.answered);
-  if (mode === "arreglo")      return rows.some(r => r._tipo === "arreglo");
-  if (mode === "arreglo_pend") return rows.some(r => r._tipo === "arreglo" && !r?.answered);
+  if (mode === "arreglo")       return rows.some(r => r._tipo === "arreglo");
+  if (mode === "arreglo_pend")  return rows.some(r => r._tipo === "arreglo" && !r?.answered);
+  if (mode === "resp_no_proc")  return rows.some(r => !!r?.answered && !r?.processed);
   switch (mode) {
     case "nro":    return rows.some(r => String(r?.nro || "").toLowerCase().includes(v));
     case "sector": return rows.some(r => String(r?.sector || "").toLowerCase().includes(v));

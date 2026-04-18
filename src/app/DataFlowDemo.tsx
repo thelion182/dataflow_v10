@@ -151,6 +151,7 @@ import {
   answeredFuncionarioDoubtsCount, answeredArchivoDoubtsCount,
   pendingArreglosCount, answeredArreglosCount,
   pendingCount, answeredCount, hasPendingDoubts, matchesDoubtFilter,
+  respondidaNoProcessadaCount, hasRespondidaNoProcessada,
 } from "../features/observations/observationHelpers";
 
 import { UserAdminModal } from "../features/users/UserAdminModal";
@@ -185,6 +186,26 @@ import type { AppEvent } from "../features/shared/uiHelpers";
         if (link && typeof prevHref === "string") link.href = prevHref!;
       };
     }, []);
+// ===== Verificar contraseña (modo API: via login backend; modo localStorage: sha256) =====
+const _apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '')
+  .replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window.location.hostname}$2`);
+async function verifyPassword(username: string, password: string): Promise<boolean> {
+  if (import.meta.env.VITE_USE_API === 'true') {
+    try {
+      const res = await fetch(`${_apiBase}/auth/login`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      return res.ok;
+    } catch { return false; }
+  }
+  const users = loadUsers();
+  const u = users.find((x: any) => x.username === username);
+  if (!u) return false;
+  return (await sha256(password)) === u.passwordHash;
+}
+
 // ===== Boot status =====
 const [bootReady, setBootReady] = useState(false);
 // ===== Snapshot de usuarios (para combos, asignaciones, etc.) =====
@@ -437,7 +458,7 @@ const [sectorViewOnlyPending, setSectorViewOnlyPending] = useState(false); // so
 
   // ===== Filtro de dudas (debe existir ANTES de 'filtered') =====
   const [doubtMode, setDoubtMode] = useState<
-  "all" | "con" | "sin" | "nro" | "sector" | "cc" | "texto" | "arreglo" | "arreglo_pend"
+  "all" | "con" | "sin" | "nro" | "sector" | "cc" | "texto" | "arreglo" | "arreglo_pend" | "resp_no_proc"
 >("all");
   const [doubtValue, setDoubtValue] = useState("");
 
@@ -1334,8 +1355,9 @@ const [helpOpen, setHelpOpen] = useState(false);
       let dudasPend = 0;
       let arreglosPend = 0;
       let totalPend = 0;
+      let respNoProc = 0;
       let lastUpdated: string | null = null;
-  
+
       for (const f of inPeriod) {
         const pd = pendingDudasCount(f);
         const pa = pendingArreglosCount(f);
@@ -1343,6 +1365,7 @@ const [helpOpen, setHelpOpen] = useState(false);
         dudasPend += pd;
         arreglosPend += pa;
         totalPend += pt;
+        respNoProc += respondidaNoProcessadaCount(f);
   
         // Intento tomar la fecha más reciente razonable
         const t =
@@ -1356,7 +1379,7 @@ const [helpOpen, setHelpOpen] = useState(false);
         }
       }
   
-      return { totalFiles, dudasPend, arreglosPend, totalPend, lastUpdated };
+      return { totalFiles, dudasPend, arreglosPend, totalPend, respNoProc, lastUpdated };
     }, [files, selectedPeriodId]);
   
 
@@ -2406,7 +2429,7 @@ return (
 
         {/* Mini tablero resumen de la liquidación */}
         {selectedPeriodId && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
             {/* Total archivos */}
             <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2">
               <div className="text-[11px] text-neutral-500">Archivos en esta liquidación</div>
@@ -2418,11 +2441,13 @@ return (
             {/* Dudas pendientes */}
             <div
               className={cls(
-                "rounded-xl px-3 py-2 border",
+                "rounded-xl px-3 py-2 border cursor-pointer hover:opacity-80",
                 summaryCurrentPeriod.dudasPend > 0
                   ? "border-amber-500/60 bg-amber-500/10"
                   : "border-neutral-800 bg-neutral-950/40"
               )}
+              title="Click para filtrar archivos con dudas pendientes"
+              onClick={() => setDoubtMode(v => v === "con" ? "all" : "con")}
             >
               <div className="text-[11px] text-neutral-500">Dudas pendientes</div>
               <div className="text-lg font-semibold">
@@ -2430,14 +2455,33 @@ return (
               </div>
             </div>
 
+            {/* Respondidas sin procesar */}
+            <div
+              className={cls(
+                "rounded-xl px-3 py-2 border cursor-pointer hover:opacity-80",
+                summaryCurrentPeriod.respNoProc > 0
+                  ? "border-orange-500/60 bg-orange-500/10"
+                  : "border-neutral-800 bg-neutral-950/40"
+              )}
+              title="Dudas respondidas por RRHH que Sueldos aún no procesó. Click para filtrar."
+              onClick={() => setDoubtMode(v => v === "resp_no_proc" ? "all" : "resp_no_proc")}
+            >
+              <div className="text-[11px] text-neutral-500">Resp. sin procesar</div>
+              <div className="text-lg font-semibold">
+                {summaryCurrentPeriod.respNoProc}
+              </div>
+            </div>
+
             {/* Arreglos pendientes */}
             <div
               className={cls(
-                "rounded-xl px-3 py-2 border",
+                "rounded-xl px-3 py-2 border cursor-pointer hover:opacity-80",
                 summaryCurrentPeriod.arreglosPend > 0
                   ? "border-sky-500/60 bg-sky-500/10"
                   : "border-neutral-800 bg-neutral-950/40"
               )}
+              title="Click para filtrar archivos con arreglos pendientes"
+              onClick={() => setDoubtMode(v => v === "arreglo_pend" ? "all" : "arreglo_pend")}
             >
               <div className="text-[11px] text-neutral-500">Arreglos pendientes</div>
               <div className="text-lg font-semibold">
@@ -2587,6 +2631,7 @@ return (
               <option value="texto">Dudas: Texto en la duda</option>
               <option value="arreglo">Solo archivos con arreglos</option>
               <option value="arreglo_pend">Arreglos pendientes</option>
+              <option value="resp_no_proc">Respondidas sin procesar</option>
             </select>
 
             {["nro", "sector", "cc", "texto"].includes(doubtMode) && (
@@ -2791,10 +2836,8 @@ return (
               onChange={(e) => { setResetPeriodPass(e.target.value); setResetPeriodError(""); }}
               onKeyDown={async (e) => {
                 if (e.key === "Enter") {
-                  const hash = await sha256(resetPeriodPass);
-                  const users = loadUsers();
-                  const sa = users.find((u: any) => u.id === me?.id && u.role === "superadmin");
-                  if (!sa || hash !== sa.passwordHash) { setResetPeriodError("Contraseña incorrecta."); return; }
+                  const ok = await verifyPassword(me?.username, resetPeriodPass);
+                  if (!ok) { setResetPeriodError("Contraseña incorrecta."); return; }
                   hardResetPeriod(selectedPeriodId);
                   setResetPeriodOpen(false);
                   setResetPeriodPass("");
@@ -2817,10 +2860,8 @@ return (
               </button>
               <button
                 onClick={async () => {
-                  const hash = await sha256(resetPeriodPass);
-                  const users = loadUsers();
-                  const sa = users.find((u: any) => u.id === me?.id && u.role === "superadmin");
-                  if (!sa || hash !== sa.passwordHash) { setResetPeriodError("Contraseña incorrecta."); return; }
+                  const ok = await verifyPassword(me?.username, resetPeriodPass);
+                  if (!ok) { setResetPeriodError("Contraseña incorrecta."); return; }
                   hardResetPeriod(selectedPeriodId);
                   setResetPeriodOpen(false);
                   setResetPeriodPass("");

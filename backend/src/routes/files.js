@@ -104,16 +104,17 @@ router.put('/', requireAuth, async (req, res) => {
       const isNew = !existing;
       const isVersionBump = !isNew && (f.version || 1) > (existing.version || 1);
 
-      // Detectar cambios en observaciones
-      const oldObs = existing?.observations || [];
-      const newObs = f.observations || [];
-      const oldObsCount = Array.isArray(oldObs) ? oldObs.length : (oldObs?.length || 0);
-      const newObsCount = Array.isArray(newObs) ? newObs.length : 0;
+      // Detectar cambios en observaciones (normalizar JSONB a array)
+      const oldObs = Array.isArray(existing?.observations) ? existing.observations
+                   : (typeof existing?.observations === 'string' ? JSON.parse(existing.observations || '[]') : []);
+      const newObs = Array.isArray(f.observations) ? f.observations : [];
+      const oldObsCount = oldObs.length;
+      const newObsCount = newObs.length;
       const hasNewThread = !isNew && newObsCount > oldObsCount;
 
-      // Detectar si alguna fila de observación fue respondida
+      // Detectar si alguna fila de observación fue respondida (solo si no hay hilo nuevo)
       let hasNewAnswer = false;
-      if (!isNew && !hasNewThread && Array.isArray(newObs) && Array.isArray(oldObs)) {
+      if (!isNew && !hasNewThread) {
         const oldAnswered = oldObs.reduce((n, t) => n + (t.rows || []).filter(r => r.answered).length, 0);
         const newAnswered = newObs.reduce((n, t) => n + (t.rows || []).filter(r => r.answered).length, 0);
         hasNewAnswer = newAnswered > oldAnswered;

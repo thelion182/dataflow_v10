@@ -253,6 +253,30 @@ CREATE TABLE IF NOT EXISTS reclamo_notificaciones (
 
 -- ─── Configuración de Reclamos ─────────────────────────────────────────────────
 
+-- ─── Log de auditoría del sistema ────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  timestamp     TIMESTAMPTZ DEFAULT NOW(),
+  usuario_id    UUID,
+  usuario_nombre VARCHAR(200),
+  usuario_rol   VARCHAR(50),
+  modulo        VARCHAR(100),
+  accion        VARCHAR(100),
+  entidad_id    VARCHAR(200),
+  entidad_ref   VARCHAR(200),
+  detalles      TEXT,
+  ip            VARCHAR(100),
+  ambiente      VARCHAR(200),
+  resultado     VARCHAR(50) DEFAULT 'ok'
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_usuario   ON audit_log(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_modulo    ON audit_log(modulo);
+
+-- ─── Config reclamos ─────────────────────────────────────────────────────────
+
 CREATE TABLE IF NOT EXISTS reclamos_config (
   id             INTEGER PRIMARY KEY DEFAULT 1,  -- fila única
   cargos         TEXT[],

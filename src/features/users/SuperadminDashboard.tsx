@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { formatDate } from "../../lib/time";
 import { db } from "../../services/db";
 
@@ -132,8 +132,16 @@ export function SuperadminDashboard({ onClose, files, downloadLogs, usersSnap, p
   }, [files, downloadLogs, usersSnap]);
 
   // ── Audit log (v2 nuevo + v1 legado) ─────────────────────────────────────
-  const auditV2 = useMemo(() => {
-    try { return db.audit.getAll(); } catch { return []; }
+  const [auditV2, setAuditV2] = useState<any[]>([]);
+  useEffect(() => {
+    try {
+      const r = db.audit.getAll();
+      if (r && typeof (r as any).then === 'function') {
+        (r as any).then((arr: any) => { if (Array.isArray(arr)) setAuditV2(arr); }).catch(() => {});
+      } else if (Array.isArray(r)) {
+        setAuditV2(r);
+      }
+    } catch { setAuditV2([]); }
   }, []);
 
   const auditLegado = useMemo(() => {
