@@ -26,7 +26,8 @@ router.post('/login', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, password_hash,
-              must_change_password, active, login_attempts, locked_until
+              must_change_password, active, login_attempts, locked_until,
+              range_start, range_end, range_txt_start, range_txt_end
        FROM users WHERE LOWER(username) = LOWER($1)`,
       [username]
     );
@@ -75,6 +76,10 @@ router.post('/login', async (req, res) => {
       email:             user.email,
       role:              user.role,
       mustChangePassword: user.must_change_password,
+      rangeStart:        user.range_start,
+      rangeEnd:          user.range_end,
+      rangeTxtStart:     user.range_txt_start,
+      rangeTxtEnd:       user.range_txt_end,
     });
   } catch (err) {
     console.error('[auth] login:', err);

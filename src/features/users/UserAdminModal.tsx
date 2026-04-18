@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Avatar from "../../components/Avatar";
 import {
   loadUsers,
@@ -13,6 +13,7 @@ import {
 } from "../../lib/auth";
 import { getUserEffectivePermissions } from "../../lib/perms";
 import { ROLE_LABELS } from "../shared/constants";
+import { db } from "../../services/db";
 
 export function UserAdminModal({
   onClose,
@@ -31,7 +32,22 @@ export function UserAdminModal({
   const [mustChange, setMustChange] = useState(true);
   const [rangesDraft, setRangesDraft] = useState<Record<string, { start: string; end: string }>>({});
 
-  const users = loadUsers();
+  const [users, setUsers] = useState<any[]>(() => loadUsers());
+
+  // En modo API, recargar usuarios desde el backend al abrir el modal
+  const reloadUsers = useCallback(() => {
+    const result = db.users.getAll();
+    if (result && typeof result.then === 'function') {
+      result.then((arr: any) => {
+        if (Array.isArray(arr) && arr.length > 0) {
+          saveUsers(arr);   // actualiza localStorage como caché
+          setUsers(arr);
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => { reloadUsers(); }, []);
 
   const usersFiltered = useMemo(
     () =>
@@ -59,6 +75,7 @@ export function UserAdminModal({
     const res = await adminCreateUser({ username: uname, role, tempPassword: pass, mustChangePassword: mustChange, permissions: defaults });
     if (!(res as any).ok) { alert((res as any).error || "No se pudo crear."); return; }
     setUsername(""); setRole("rrhh"); setTempPass(""); setMustChange(true);
+    reloadUsers();
   }
 
   async function resetPass(u: any) {
@@ -67,35 +84,27 @@ export function UserAdminModal({
     if (!isStrong(pass)) { alert("Debe tener al menos 8 caracteres, letras y números"); return; }
     const res: any = await adminResetPassword(u.id, pass);
     if (!res?.ok) { alert(res?.error || "No se pudo resetear."); return; }
-    try {
-      const users = loadUsers();
-      const updated = users.map((x: any) => x.id === u.id ? { ...x, mustChangePassword: true } : x);
-      replaceUsers(updated);
-    } catch (e) { console.warn("No se pudo marcar mustChangePassword", e); }
     alert("Contraseña temporal actualizada. Se pedirá cambio al primer login.");
+    reloadUsers();
   }
 
   function toggleActive(u: any) {
     const res = adminSetActive(u.id, !u.active);
     if (!(res as any).ok) alert((res as any).error || "No se pudo cambiar estado.");
+    reloadUsers();
   }
 
   function changeRole(u: any, newRole: "rrhh" | "sueldos" | "admin") {
     const res = adminSetRole(u.id, newRole);
-    if (!(res as any).ok) alert((res as any).error || "No se pudo cambiar rol.");
-    if (newRole === "sueldos") {
-      const rec = rangesDraft[u.id];
-      if (!rec) {
-        const freshUser = loadUsers().find((x) => x.id === u.id);
-        setRangesDraft((prev) => ({ ...prev, [u.id]: { start: freshUser?.rangeStart != null ? String(freshUser.rangeStart) : "", end: freshUser?.rangeEnd != null ? String(freshUser.rangeEnd) : "" } }));
-      }
-    }
+    if (!(res as any).ok) { alert((res as any).error || "No se pudo cambiar rol."); return; }
+    reloadUsers();
   }
 
   function removeUser(u: any) {
     if (!confirm(`¿Eliminar usuario ${u.username}?`)) return;
     const rest = users.filter((x: any) => x.id !== u.id);
     replaceUsers(rest);
+    reloadUsers();
   }
 
   function getRangeDraft(u: any) {
@@ -117,13 +126,21 @@ export function UserAdminModal({
     if ((draft.start.trim() !== "" && Number.isNaN(newStart)) || (draft.end.trim() !== "" && Number.isNaN(newEnd))) { alert("Rango inválido (deben ser números)."); return; }
     upsertUser({ ...u, rangeStart: newStart, rangeEnd: newEnd });
     alert("Rango guardado.");
+    reloadUsers();
   }
 
-  function adjustLastNumberForUser(u: any) {
-    const perId = localStorage.getItem("dataflow-period-selected") || "";
-    const rawDc = localStorage.getItem("dataflow-downloadCounters");
+  async function adjustLastNumberForUser(u: any) {
+    const rawCounters = db.downloads.getCounters();
     let dc: any = {};
-    try { dc = rawDc ? JSON.parse(rawDc) : {}; } catch { dc = {}; }
+    const resolved = (rawCounters && typeof rawCounters.then === 'function')
+      ? await rawCounters.catch(() => ({}))
+      : rawCounters;
+    if (resolved && typeof resolved === 'object') dc = resolved;
+
+    const rawPerId = db.downloads.getSelectedPeriodId ? db.downloads.getSelectedPeriodId() : null;
+    const perId = (typeof rawPerId === 'string' ? rawPerId : null)
+      || localStorage.getItem("dataflow-period-selected") || "";
+
     if (!dc[perId]) dc[perId] = {};
     const currentVal = dc[perId][u.id] ?? (u.rangeStart != null ? u.rangeStart - 1 : 0);
     const newValStr = prompt(`Ajustar último número usado de ${u.username} en la liquidación actual (${perId}).\nValor actual: ${currentVal}\nNuevo valor (entre ${u.rangeStart ?? "?"} y ${u.rangeEnd ?? "?"}, o poné ${u.rangeStart != null ? u.rangeStart - 1 : "inicio-1"} para "todavía no usó ninguno"):`);
@@ -133,7 +150,8 @@ export function UserAdminModal({
     const maxPermitido = u.rangeEnd != null ? u.rangeEnd : Number.POSITIVE_INFINITY;
     if (Number.isNaN(newValNum) || newValNum < minPermitido || newValNum > maxPermitido) { alert("Valor inválido."); return; }
     dc[perId][u.id] = newValNum;
-    try { localStorage.setItem("dataflow-downloadCounters", JSON.stringify(dc)); alert("Último número ajustado."); } catch (e) { alert("No se pudo guardar el ajuste: " + e); }
+    db.downloads.saveCounters(dc);
+    alert("Último número ajustado.");
   }
 
   return (

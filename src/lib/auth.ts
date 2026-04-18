@@ -43,6 +43,14 @@ export function upsertUser(user: AppUser) {
   if (i >= 0) list[i] = user;
   else list.push(user);
   saveUsers(list);
+  if (USE_API) {
+    fetch(`${API_URL}/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(user),
+    }).catch(() => {});
+  }
 }
 
 // ======================================================
@@ -176,8 +184,10 @@ export async function attemptLogin(username: string, password: string) {
         active: true,
         mustChangePassword: data.mustChangePassword || false,
         permissions: structuredClone(ROLE_DEFAULT_PERMISSIONS[data.role] || ROLE_DEFAULT_PERMISSIONS.rrhh),
-        rangeStart: data.rangeStart,
-        rangeEnd: data.rangeEnd,
+        rangeStart: data.rangeStart ?? undefined,
+        rangeEnd: data.rangeEnd ?? undefined,
+        rangeTxtStart: data.rangeTxtStart ?? undefined,
+        rangeTxtEnd: data.rangeTxtEnd ?? undefined,
         passwordHash: '',
         loginAttempts: 0,
         lockedUntil: '',
@@ -345,13 +355,30 @@ export async function adminCreateUser({
           ROLE_DEFAULT_PERMISSIONS[role] || ROLE_DEFAULT_PERMISSIONS.rrhh
         ),
 
-    // 🔥 rango exclusivo del usuario de sueldos para numeración de descargas
     rangeStart: undefined,
     rangeEnd: undefined,
   };
 
   users.push(u);
   saveUsers(users);
+
+  if (USE_API) {
+    try {
+      const res = await fetch(`${API_URL}/users/${u.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ...u, plainPassword: tempPassword }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        return { ok: false, error: d.error || 'Error al crear usuario en el servidor.' };
+      }
+    } catch {
+      return { ok: false, error: 'Error de conexión al crear usuario.' };
+    }
+  }
+
   return { ok: true, user: u };
 }
 
@@ -368,6 +395,24 @@ export async function adminResetPassword(
   users[idx].loginAttempts = 0;
   users[idx].lockedUntil = "";
   saveUsers(users);
+
+  if (USE_API) {
+    try {
+      const res = await fetch(`${API_URL}/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ...users[idx], plainPassword: newTempPassword, mustChangePassword: true }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        return { ok: false, error: d.error || 'Error al actualizar contraseña en el servidor.' };
+      }
+    } catch {
+      return { ok: false, error: 'Error de conexión al resetear contraseña.' };
+    }
+  }
+
   return { ok: true };
 }
 
@@ -387,24 +432,23 @@ export function adminSetRole(userId: string, role: any) {
 
   users[idx].role = role;
 
-  // si no tiene permisos guardados, dale los del rol base
   if (!users[idx].permissions) {
     users[idx].permissions = structuredClone(
       ROLE_DEFAULT_PERMISSIONS[role] || ROLE_DEFAULT_PERMISSIONS.rrhh
     );
   }
 
-  // si ahora es sueldos y nunca se le asignó rango, prepará campos
-  if (role === "sueldos") {
-    if (typeof users[idx].rangeStart === "undefined") {
-      users[idx].rangeStart = undefined;
-    }
-    if (typeof users[idx].rangeEnd === "undefined") {
-      users[idx].rangeEnd = undefined;
-    }
+  saveUsers(users);
+
+  if (USE_API) {
+    fetch(`${API_URL}/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(users[idx]),
+    }).catch(() => {});
   }
 
-  saveUsers(users);
   return { ok: true };
 }
 
@@ -415,6 +459,16 @@ export function adminSetActive(userId: string, active: boolean) {
 
   users[idx].active = !!active;
   saveUsers(users);
+
+  if (USE_API) {
+    fetch(`${API_URL}/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(users[idx]),
+    }).catch(() => {});
+  }
+
   return { ok: true };
 }
 

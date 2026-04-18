@@ -1383,13 +1383,12 @@ async function handleChangePassword(e?: React.FormEvent) {
   }
   if (!me?.id) return;
   try {
+    const res: any = await adminResetPassword(me.id, next);
+    if (!res?.ok) { setLoginError(res?.error || "No se pudo cambiar la contraseña."); return; }
+    // Limpiar mustChangePassword localmente
     const users = loadUsers();
     const idx = users.findIndex((u: any) => u.id === me.id);
-    if (idx >= 0) {
-      users[idx].passwordHash = await sha256(next);
-      users[idx].mustChangePassword = false;
-      saveUsers(users);
-    }
+    if (idx >= 0) { users[idx].mustChangePassword = false; saveUsers(users); }
     setChangingPwd(false);
     setNewPwd("");
     setLoginError("");
