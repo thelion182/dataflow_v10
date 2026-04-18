@@ -46,12 +46,13 @@ export function ProfileModal({
     const curr = currentPass.trim();
     const next = newPass.trim();
     const conf = confirmPass.trim();
-    if (!curr || !next || !conf) { alert("Completá todos los campos de contraseña."); return; }
+    if (!forcePasswordChange && !curr) { alert("Completá todos los campos de contraseña."); return; }
+    if (!next || !conf) { alert("Completá todos los campos de contraseña."); return; }
     if (next !== conf) { alert("La nueva contraseña y la confirmación no coinciden."); return; }
     if (!isStrong(next)) { alert("La nueva contraseña debe tener al menos 8 caracteres y combinar letras y números."); return; }
     setChangingPwd(true);
     try {
-      const res: any = await changePassword(me.id, curr, next);
+      const res: any = await changePassword(me.id, forcePasswordChange ? "" : curr, next);
       if (!res?.ok) { alert(res?.error || "No se pudo cambiar la contraseña."); return; }
       alert("Contraseña actualizada.");
       setCurrentPass(""); setNewPass(""); setConfirmPass("");
@@ -149,7 +150,7 @@ export function ProfileModal({
           </div>
           <p className="text-xs text-neutral-400">Debe tener al menos 8 caracteres e incluir letras y números.</p>
           <div className="space-y-2">
-            <input type="password" value={currentPass} onChange={(e) => setCurrentPass(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none" placeholder="Contraseña actual" />
+            {!forcePasswordChange && <input type="password" value={currentPass} onChange={(e) => setCurrentPass(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none" placeholder="Contraseña actual" />}
             <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none" placeholder="Nueva contraseña" />
             <input type="password" value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none" placeholder="Repetir nueva contraseña" />
           </div>

@@ -2840,6 +2840,9 @@ return (
             }
           }}
           onPasswordChangedSuccess={() => {
+            const users = loadUsers();
+            const idx = users.findIndex((u: any) => u.id === me.id);
+            if (idx >= 0) { users[idx].mustChangePassword = false; saveUsers(users); }
             setSessionState(getSession());
             setProfileOpen(false);
             pushToast({
