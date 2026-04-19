@@ -168,13 +168,10 @@ export type AppFile = {
   status: string;
   statusOverride?: string;
 
-  siteId?: string | null;
-  siteName?: string | null;
-  // ✅ para trazabilidad y vista por sector
   siteCode?: string | null;
-  // 🔽 NUEVO: info de sector asociada al archivo
-  sectorId?: string | null;
   sectorName?: string | null;
+  subcategory?: string | null;
+  combinationId?: string | null;
   noNews?: boolean;
 
   version: number;
@@ -192,35 +189,39 @@ export type AppFile = {
 };
 
 // ===================================
-// Sectores (para vincular archivos)
+// Sedes
+// ===================================
+
+export type SiteConfig = {
+  id: string;
+  code: string;   // "SG", "SC", "JPII" — en MAYÚSCULAS, único, obligatorio
+  name: string;   // "Sanatorio Galicia", etc.
+  active: boolean;
+};
+
+// ===================================
+// Sectores (lista simple de nombres)
 // ===================================
 
 export type SectorConfig = {
   id: string;
   name: string;
-  patterns: string[];
   active: boolean;
-
-  requiredCount: number;
-  allowNoNews: boolean;
-
-  // ✅ la regla aplica a esta sede
-  siteCode: string; // "SG", "SC", "JPII" (o vacío si no aplica)
-
-  // Centro de costo del sector
-  cc?: string;
-
-  // Responsable RRHH asignado a esta regla
-  ownerUserId?: string | null;
-  ownerUsername?: string | null;
 };
 
+// ===================================
+// Combinaciones (núcleo de validación)
+// sede + sector + subcategoría → combinación válida
+// ===================================
 
-export type SiteConfig = {
+export type Combination = {
   id: string;
-  code: string;        // "SG", "SC", "JPII", "F01"...
-  name: string;        // "Sanatorio Galicia", etc.
-  patterns: string[];  // fallback: "galicia", "central"...
+  siteCode: string;       // FK → SiteConfig.code
+  sectorName: string;     // nombre del sector
+  subcategory: string | null;   // subcategoría o null = "sin subcategoría"
+  ownerUserId: string | null;
+  ownerUsername: string | null;
+  allowNoNews: boolean;
   active: boolean;
 };
 

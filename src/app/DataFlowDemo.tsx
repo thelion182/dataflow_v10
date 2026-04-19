@@ -127,9 +127,7 @@ import { DetailModal } from "../features/files/DetailModal";
 import { FileTable } from "../features/files/FileTable";
 import { RowMenuPortal } from "../features/files/RowMenuPortal";
 import { NoNewsModal } from "../features/files/NoNewsModal";
-import { SectorsModal } from "../features/sectors/SectorsModal";
-import { SitesManageModal } from "../features/sectors/SitesManageModal";
-import { SectorsCsvHelpModal } from "../features/sectors/SectorsCsvHelpModal";
+import { SectorsConfigModal } from "../features/sectors/SectorsConfigModal";
 import { SectorSummaryModal } from "../features/sectors/SectorSummaryModal";
 import { ObserveModal } from "../features/observations/ObserveModal";
 import { FileDoubtModal } from "../features/observations/FileDoubtModal";
@@ -324,28 +322,30 @@ useEffect(() => {
   const [newPeriodYM, setNewPeriodYM] = useState("");
   const [managePeriodsOpen, setManagePeriodsOpen] = useState(false);
 
-  // ===== Sectores (NUEVO) =====
-  // useSectors hook
+  // ===== Sectores + Combinaciones =====
   const {
     sectors, setSectors,
     sites, setSites,
+    combinations, setCombinations, activeCombinations,
     addSite, updateSite, deleteSite,
     addSector, updateSector, deleteSector,
-    downloadSectorsTemplateCSV, handleImportSitesCSV,
-    downloadSitesTemplateCSV, handleImportSectorsCSV,
-    guessSectorForFileName, norm, detectSiteCodeFromName,
-    matchRuleForFileName, guessSiteForFileName,
+    addCombination, updateCombination, deleteCombination,
+    detectCombinationForFile,
+    handleImportSitesCSV,
+    handleImportCombinationsCSV,
+    downloadCombinationsTemplateCSV,
+    downloadSitesTemplateCSV,
+    guessSiteForFileName,
+    guessSectorForFileName,
   } = useSectors({ rrhhUsers, me });
 
   // Notificaciones en tiempo real via SSE (activo solo con VITE_USE_API=true)
   useSSE({ meId: me?.id });
 
 const [sectorsOpen, setSectorsOpen] = useState(false);
-const [sectorsCsvHelpOpen, setSectorsCsvHelpOpen] = useState(false);
 const [noNewsOpen, setNoNewsOpen] = useState(false);
 const [isDraggingOver, setIsDraggingOver] = useState(false);
 const [selectedKeyForNoNews, setSelectedKeyForNoNews] = useState("");
-const [sitesManageOpen, setSitesManageOpen] = useState(false);
   
 
 
@@ -374,7 +374,7 @@ const [processIncludeFileDoubts, setProcessIncludeFileDoubts] = useState(false);
     updateFile, setStatus, markDownloaded, bumpVersion, setNote,
     guessTypeFromName, safeObjectURL, isUploadAllowedForRole,
     deleteFile, hardResetPeriod, handleUpload, createNewFile, clearAll, handleStatusChange,
-  } = useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve: null, guessSectorForFileName, guessSiteForFileName });
+  } = useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, combinations, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve: null, detectCombinationForFile });
   // useDownloads hook
   const {
     downloadCounters, setDownloadCounters,
@@ -567,231 +567,71 @@ const activeNoNewsRules = useMemo(
 
 
 // ===== Resumen por sector + sede (NUEVO) =====
+// sectorSummary: una fila por combinación activa + bucket "sin clasificar"
 const sectorSummary = useMemo(() => {
   if (!selectedPeriodId) return [];
 
-  const periodFiles = files.filter((f: any) => f.periodId === selectedPeriodId);
+  const periodFiles = files.filter((f: any) => f.periodId === selectedPeriodId && !f.eliminated && f.statusOverride !== 'eliminado');
 
-  // Index
-  const sectorById = new Map<string, any>();
-  for (const s of sectors) sectorById.set(s.id, s);
-
-  const siteById = new Map<string, any>();
-  for (const si of sites) siteById.set(si.id, si);
-
-  const activeSectors = (sectors || []).filter((s: any) => s?.active);
-  const activeSites = (sites || []).filter((s: any) => s?.active !== false);
-
-  const keyFor = (sectorId?: string | null, siteId?: string | null) =>
-    `${sectorId || "__no_sector__"}|${siteId || "__no_site__"}`;
-
-  const map = new Map<string, any>();
-
-  // 1) Creamos filas para TODOS los pares sector+sede (aunque no tengan archivos)
-  // 1) Pre-cargar SOLO reglas reales (sector+sede)
+  // Índice de sedes por código
   const siteByCode = new Map<string, any>();
   for (const si of sites || []) siteByCode.set(String(si.code || "").toUpperCase(), si);
 
-  const activeRules = (sectors || []).filter((s: any) => s?.active);
+  // Mapa combinationId -> entry
+  const map = new Map<string, any>();
 
-  for (const rule of activeRules) {
-    // Regla => tiene que tener sede asignada por code o id (según tu modelo actual)
-    const ruleSiteId =
-      rule.siteId ||
-      (rule.siteCode
-        ? siteByCode.get(String(rule.siteCode).toUpperCase())?.id
-        : null) ||
-      null;
-  
-    // ✅ A) Si la regla no tiene sede, NO la pre-cargamos como par "real"
-    //    (esto evita "Ropería / Sin sede" y la tercera fila fantasma)
-    if (!ruleSiteId) continue;
-  
-    const secId = rule.id;
-    const siId = ruleSiteId;
-  
-    const key = keyFor(secId, siId);
-  
-    const si = siId ? siteById.get(siId) : null;
-  
-    map.set(key, {
-      key,
-      sectorId: secId,
-      sectorName: rule?.name || "Sin sector",
-      siteId: siId,
-      siteName: si?.name || "Sin sede",
-  
-      requiredCount: Number.isFinite(rule.requiredCount) ? rule.requiredCount : 0,
-      allowNoNews: !!rule.allowNoNews,
-  
+  // 1) Pre-cargar todas las combinaciones activas
+  for (const c of (combinations || []).filter((c: any) => c.active)) {
+    const site = siteByCode.get(String(c.siteCode || "").toUpperCase());
+    const siteName = site?.name || c.siteCode || "Sin sede";
+    map.set(c.id, {
+      key: c.id,
+      combinationId: c.id,
+      siteCode: c.siteCode,
+      siteName,
+      sectorName: c.sectorName,
+      subcategory: c.subcategory || null,
+      allowNoNews: !!c.allowNoNews,
+      ownerUsername: c.ownerUsername || null,
       receivedReal: 0,
       noNewsCount: 0,
       effectiveReceived: 0,
-      missing: 0,
       completed: false,
       lastUpdatedAt: null,
       files: [],
-      uploadedBy: {},
-    });
-  }
-  // Bucket “sin sector” (si querés, lo dejamos solo para mirar errores)
-  if (!map.has(keyFor(null, null))) {
-    map.set(keyFor(null, null), {
-      key: keyFor(null, null),
-      sectorId: null,
-      sectorName: "Sin sector asignado",
-      siteId: null,
-      siteName: "Sin sede",
-      requiredCount: 0,
-      allowNoNews: false,
-      receivedReal: 0,
-      noNewsCount: 0,
-      effectiveReceived: 0,
-      missing: 0,
-      completed: false,
-      lastUpdatedAt: null,
-      files: [],
-      uploadedBy: {},
     });
   }
 
-// 2) Acumular archivos
-for (const f of periodFiles) {
-  // Resolver sectorId desde nombre si falta (archivos que vienen del backend)
-  let secId = f.sectorId || null;
-  if (!secId && (f.sectorName || f.sector)) {
-    const name = (f.sectorName || f.sector || '').toLowerCase().trim();
-    const found = sectors.find((s: any) => (s.name || '').toLowerCase().trim() === name);
-    secId = found?.id || null;
-  }
+  // 2) Acumular archivos a su combinación
+  for (const f of periodFiles) {
+    const cid = f.combinationId || null;
+    const entry = cid ? map.get(cid) : null;
 
-  // --- FIX: resolver siteId desde siteCode si falta ---
-  let siteIdResolved = f.siteId || null;
-
-  if (!siteIdResolved && f.siteCode) {
-    const si = siteByCode.get(String(f.siteCode).toUpperCase());
-    siteIdResolved = si?.id || null;
-  }
-
-  // ✅ B) Si no tengo sector o no tengo sede resuelta, NO genero par "sector+sede"
-  //     (evita la fila fantasma tipo "Ropería / Sin sede")
-  if (!secId || !siteIdResolved) {
-    // Si querés, lo mandamos al bucket "sin sector" solo para diagnóstico (no cuenta en progreso)
-    const diagKey = keyFor(null, null);
-    if (!map.has(diagKey)) {
-      map.set(diagKey, {
-        key: diagKey,
-        sectorId: null,
-        sectorName: "Sin sector asignado",
-        siteId: null,
-        siteName: "Sin sede",
-        requiredCount: 0,
-        allowNoNews: false,
-        receivedReal: 0,
-        noNewsCount: 0,
-        effectiveReceived: 0,
-        missing: 0,
-        completed: false,
-        lastUpdatedAt: null,
-        files: [],
-        uploadedBy: {},
-      });
-    }
-
-    const diag = map.get(diagKey);
-    if (diag) {
-      diag.files.push(f);
-      const u = (f.byUsername || "sistema").toString();
-      diag.uploadedBy[u] = (diag.uploadedBy[u] || 0) + 1;
-
-      const isNoNews = !!f.noNews;
-      if (isNoNews) diag.noNewsCount += 1;
-      else diag.receivedReal += 1;
-
+    if (entry) {
+      entry.files.push(f);
+      if (f.noNews) entry.noNewsCount += 1;
+      else entry.receivedReal += 1;
       const at = f.at || null;
-      if (at && (!diag.lastUpdatedAt || at > diag.lastUpdatedAt)) diag.lastUpdatedAt = at;
+      if (at && (!entry.lastUpdatedAt || at > entry.lastUpdatedAt)) entry.lastUpdatedAt = at;
     }
-
-    continue;
+    // archivos sin combinationId van a "sin clasificar" (no cuentan en progreso)
   }
 
-  // ⚠️ clave SIEMPRE con secId + siteIdResolved
-  const key = keyFor(secId, siteIdResolved);
-
-  // Si vino un par que no estaba (ej: regla no creada), lo creamos:
-  // PERO con requeridos=0 para que no infle el progreso.
-  if (!map.has(key)) {
-    const sec = sectorById.get(secId);
-    const si = siteById.get(siteIdResolved);
-
-    map.set(key, {
-      key,
-      sectorId: secId,
-      sectorName: sec?.name || "Sin sector asignado",
-      siteId: siteIdResolved,
-      siteName: si?.name || (f.siteName || "Sin sede"),
-
-      requiredCount: 0,     // 👈 clave: si no hay regla cargada, no cuenta como requerido
-      allowNoNews: false,   // 👈 idem
-
-      receivedReal: 0,
-      noNewsCount: 0,
-      effectiveReceived: 0,
-      missing: 0,
-      completed: false,
-      lastUpdatedAt: null,
-      files: [],
-      uploadedBy: {},
-    });
-  }
-
-  const entry = map.get(key);
-  if (!entry) continue;
-
-  entry.files.push(f);
-
-  const u = (f.byUsername || "sistema").toString();
-  entry.uploadedBy[u] = (entry.uploadedBy[u] || 0) + 1;
-
-  const isNoNews = !!f.noNews;
-  if (isNoNews) entry.noNewsCount += 1;
-  else entry.receivedReal += 1;
-
-  const at = f.at || null;
-  if (at && (!entry.lastUpdatedAt || at > entry.lastUpdatedAt)) entry.lastUpdatedAt = at;
-}
-  // 3) Calcular effective/missing/completed
+  // 3) Calcular completed
   for (const entry of map.values()) {
-    const req = Number.isFinite(entry.requiredCount) ? entry.requiredCount : 0;
-
-    // Si allowNoNews y hay al menos una marca noNews, lo damos por cumplido (1 “entrega”)
     const effective = entry.receivedReal + (entry.allowNoNews ? entry.noNewsCount : 0);
-
     entry.effectiveReceived = effective;
-
-    if (req <= 0) {
-      entry.missing = 0;
-      entry.completed = true;
-    } else {
-      entry.missing = Math.max(0, req - effective);
-      entry.completed = entry.missing === 0;
-    }
+    entry.completed = effective > 0;
   }
 
-  // 4) Orden: solo reglas reales (sector + sede), primero incompletos
-return Array.from(map.values())
-.filter((r: any) =>
-  r.sectorId !== null &&
-  r.siteId !== null &&
-  Number(r.requiredCount) > 0 // 👈 solo lo que realmente exige algo
-)
-.sort((a: any, b: any) => {
-  if (a.completed !== b.completed) return a.completed ? 1 : -1;
-  const sa = `${a.siteName} ${a.sectorName}`.toLowerCase();
-  const sb = `${b.siteName} ${b.sectorName}`.toLowerCase();
-  return sa.localeCompare(sb);
-});
-}, [selectedPeriodId, files, sectors, sites]);
+  // 4) Orden: incompletos primero, luego por sede+sector
+  return Array.from(map.values()).sort((a: any, b: any) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    const sa = `${a.siteName} ${a.sectorName} ${a.subcategory||""}`.toLowerCase();
+    const sb = `${b.siteName} ${b.sectorName} ${b.subcategory||""}`.toLowerCase();
+    return sa.localeCompare(sb);
+  });
+}, [selectedPeriodId, files, combinations, sites]);
 
 // ===== Progreso de entrega global (para la barra de progreso) =====
 const deliveryProgress = useMemo(() => {
@@ -804,26 +644,10 @@ const deliveryProgress = useMemo(() => {
 
 // ===== sectorSummary agrupado por nombre de sector (para Vista por sector) =====
 const sectorSummaryGrouped = useMemo(() => {
-  const byName = new Map<
-    string,
-    {
-      sectorName: string;
-      requiredTotal: number;
-      receivedTotal: number; // suma de min(req, effective)
-      missingTotal: number;
-      completed: boolean;
-      lastUpdatedAt: any;
-      uploadedBy: Record<string, number>;
-      rows: any[];
-    }
-  >();
+  const byName = new Map<string, any>();
 
   for (const r of sectorSummary || []) {
     const name = String(r?.sectorName || "Sin sector").trim();
-
-    const req = Math.max(0, Number(r?.requiredCount) || 0);
-    const eff = Math.max(0, Number(r?.effectiveReceived) || 0);
-    const rec = Math.min(req, eff); // no pasarse de los requeridos
 
     if (!byName.has(name)) {
       byName.set(name, {
@@ -838,31 +662,21 @@ const sectorSummaryGrouped = useMemo(() => {
       });
     }
 
-    const g = byName.get(name)!;
+    const g = byName.get(name);
+    g.requiredTotal += 1; // 1 combinacion = 1 esperado
+    g.receivedTotal += r.completed ? 1 : 0;
+    g.missingTotal  += r.completed ? 0 : 1;
 
-    g.requiredTotal += req;
-    g.receivedTotal += rec;
-    g.missingTotal += Math.max(0, req - eff);
-
-    // última actualización = max
     const at = r?.lastUpdatedAt || null;
     if (at && (!g.lastUpdatedAt || at > g.lastUpdatedAt)) g.lastUpdatedAt = at;
-
-    // sumar "subido por" (agregado)
-    const up = r?.uploadedBy || {};
-    for (const k of Object.keys(up)) {
-      g.uploadedBy[k] = (g.uploadedBy[k] || 0) + (Number(up[k]) || 0);
-    }
 
     g.rows.push(r);
   }
 
-  // marcar completed
   for (const g of byName.values()) {
     g.completed = g.missingTotal <= 0;
   }
 
-  // orden: incompletos primero, luego alfabético
   return Array.from(byName.values()).sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     return a.sectorName.toLowerCase().localeCompare(b.sectorName.toLowerCase());
@@ -898,7 +712,7 @@ const sectorSummaryGroupedFiltered = useMemo(() => {
       }
 
       // Solo pendientes (por fila)
-      if (onlyPend && (Number(r?.missing) || 0) <= 0) return false;
+      if (onlyPend && r?.completed) return false;
 
       return true;
     });
@@ -914,21 +728,12 @@ const sectorSummaryGroupedFiltered = useMemo(() => {
     const uploadedBy: Record<string, number> = {};
 
     for (const r of rows) {
-      const req = Math.max(0, Number(r?.requiredCount) || 0);
-      const eff = Math.max(0, Number(r?.effectiveReceived) || 0);
-      const rec = Math.min(req, eff);
-
-      requiredTotal += req;
-      receivedTotal += rec;
-      missingTotal += Math.max(0, req - eff);
+      requiredTotal += 1;
+      receivedTotal += r.completed ? 1 : 0;
+      missingTotal  += r.completed ? 0 : 1;
 
       const at = r?.lastUpdatedAt || null;
       if (at && (!lastUpdatedAt || at > lastUpdatedAt)) lastUpdatedAt = at;
-
-      const up = r?.uploadedBy || {};
-      for (const k of Object.keys(up)) {
-        uploadedBy[k] = (uploadedBy[k] || 0) + (Number(up[k]) || 0);
-      }
     }
 
     // Si elegís "solo pendientes" a nivel grupo, esto ya cae solo con filas pendientes.
@@ -969,85 +774,48 @@ const mySiteIds = useMemo(() => {
   );
 }, [sites, me?.id]);
 
-// ===== Progreso global vs personal (POR REQUERIDOS) =====
+// ===== Progreso global vs personal (por combinaciones) =====
 const sectorStats = useMemo(() => {
-  const evaluables = (sectorSummary || []).filter(
-    (r: any) => (Number(r.requiredCount) || 0) > 0 && !!r.sectorId && !!r.siteId
-  );
+  // Total = combinaciones activas; Done = las que tienen al menos 1 archivo o noNews
+  const total = sectorSummary.length;
+  const done  = sectorSummary.filter((r: any) => r.completed).length;
+  const pct   = total <= 0 ? 100 : Math.round((done / total) * 100);
 
-  let totalReq = 0;
-  let doneReq = 0;
+  // Personal: combinaciones donde el responsable soy yo (ownerUserId === me?.id)
+  const mine = sectorSummary.filter((r: any) => r.ownerUsername && me?.username && r.ownerUsername === me.username);
+  const myTotal = mine.length;
+  const myDone  = mine.filter((r: any) => r.completed).length;
+  const myPct   = myTotal <= 0 ? 100 : Math.round((myDone / myTotal) * 100);
 
-  for (const r of evaluables) {
-    const req = Math.max(0, Number(r.requiredCount) || 0);
-    const rec = Math.max(0, Number(r.effectiveReceived) || 0);
-    totalReq += req;
-    doneReq += Math.min(req, rec);
-  }
+  return { totalReq: total, doneReq: done, pct, myTotalReq: myTotal, myDoneReq: myDone, myPct };
+}, [sectorSummary, me?.username]);
 
-  const pct = totalReq <= 0 ? 100 : Math.round((doneReq / totalReq) * 100);
-
-  const mine = evaluables.filter((r: any) => mySiteIds.has(r.siteId));
-
-  let myTotalReq = 0;
-  let myDoneReq = 0;
-
-  for (const r of mine) {
-    const req = Math.max(0, Number(r.requiredCount) || 0);
-    const rec = Math.max(0, Number(r.effectiveReceived) || 0);
-    myTotalReq += req;
-    myDoneReq += Math.min(req, rec);
-  }
-
-  const myPct = myTotalReq <= 0 ? 100 : Math.round((myDoneReq / myTotalReq) * 100);
-
-  return { totalReq, doneReq, pct, myTotalReq, myDoneReq, myPct };
-}, [sectorSummary, mySiteIds]);
-
-// ===== UI: opciones "Sin novedades" (Sector – Sede por NOMBRE) =====
+// ===== UI: opciones "Sin novedades" (basado en combinaciones activas con allowNoNews) =====
 const noNewsOptions = useMemo(() => {
-  const sitesArr = (sites || []) as any[];
-  const rules = (sectors || []).filter((r: any) => !!r?.active && !!r?.allowNoNews);
-
-  // índice por code corto (SC, SG, etc.)
   const siteByCodeLocal = new Map<string, any>();
-  for (const si of sitesArr) {
+  for (const si of (sites || [])) {
     const code = String(si?.code || "").toUpperCase().trim();
     if (code) siteByCodeLocal.set(code, si);
   }
 
-  // armamos opciones sin depender de siteById/siteByCode externos
-  const metaByKey = new Map<string, { sectorId: string; siteId: string | null; sectorName: string; siteName: string }>();
+  const metaByKey = new Map<string, { combinationId: string; siteCode: string; sectorName: string; subcategory: string | null; siteName: string }>();
   const options: Array<{ key: string; label: string }> = [];
 
-  for (const r of rules) {
-    const resolvedSiteId =
-      r.siteId ||
-      (r.siteCode ? siteByCodeLocal.get(String(r.siteCode).toUpperCase().trim())?.id : null) ||
-      null;
+  for (const c of (combinations || []).filter((c: any) => c.active && c.allowNoNews)) {
+    const site = siteByCodeLocal.get(String(c.siteCode || "").toUpperCase());
+    const siteName = site?.name || c.siteCode || "Sin sede";
+    const subLabel = c.subcategory ? ` (${c.subcategory})` : "";
+    const label = `${c.sectorName}${subLabel} - ${siteName}`;
 
-    const siteObj =
-      resolvedSiteId
-        ? sitesArr.find((s: any) => String(s.id) === String(resolvedSiteId))
-        : (r.siteCode ? siteByCodeLocal.get(String(r.siteCode).toUpperCase().trim()) : null);
-
-    const sectorName = (r?.name || "Sin sector").toString();
-    const siteName = (siteObj?.name || "Sin sede").toString();
-
-    const key = keyFor(r.id, resolvedSiteId); // MISMA key que tu progreso
-
-    // evitamos duplicados por si alguna vez aparecen
-    if (!metaByKey.has(key)) {
-      metaByKey.set(key, { sectorId: String(r.id), siteId: resolvedSiteId ? String(resolvedSiteId) : null, sectorName, siteName });
-      options.push({ key, label: `${sectorName} – ${siteName}` });
+    if (!metaByKey.has(c.id)) {
+      metaByKey.set(c.id, { combinationId: c.id, siteCode: c.siteCode, sectorName: c.sectorName, subcategory: c.subcategory || null, siteName });
+      options.push({ key: c.id, label });
     }
   }
 
-  // orden alfabético por label para que sea cómodo
   options.sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
-
   return { options, metaByKey };
-}, [sectors, sites]);
+}, [combinations, sites]);
 
   /* ========= SELECCIÓN MÚLTIPLE + ZIP necesita que 'filtered' ya exista ========= */
 
@@ -1088,18 +856,15 @@ const noNewsOptions = useMemo(() => {
     let changed = 0;
     setFiles((prev: any[]) => prev.map((f: any) => {
       if (!selectedIds.has(f.id)) return f;
-      const guessedSite = guessSiteForFileName(f.name || "");
-      const guessedSector = guessSectorForFileName(f.name || "");
-      const newSiteId = guessedSite?.id ?? f.siteId ?? null;
-      const newSiteName = guessedSite?.name ?? f.siteName ?? null;
-      const newSectorId = guessedSector?.id ?? f.sectorId ?? null;
-      const newSectorName = guessedSector?.name ?? f.sectorName ?? null;
-      const updated = newSiteId !== f.siteId || newSectorId !== f.sectorId;
+      const detection = detectCombinationForFile ? detectCombinationForFile(f.name || "") : null;
+      if (!detection?.ok) return f;
+      const c = detection.combination;
+      const updated = f.combinationId !== c.id;
       if (updated) changed++;
-      return { ...f, siteId: newSiteId, siteName: newSiteName, sectorId: newSectorId, sectorName: newSectorName };
+      return { ...f, combinationId: c.id, siteCode: c.siteCode, sectorName: c.sectorName, subcategory: c.subcategory || null };
     }));
     setTimeout(() => {
-      pushToast({ title: "Re-detección completada", message: `${changed} archivo(s) actualizados.` });
+      pushToast({ title: "Re-deteccion completada", message: `${changed} archivo(s) actualizados.` });
     }, 100);
   }
 
@@ -1655,7 +1420,7 @@ async function handleLoginSubmit(e?: React.FormEvent) {
      ========================= */
 
 
-// Botón oscuro “trigger” de los menús (sin blanqueo ni hover fuerte)
+// Botón oscuro "trigger" de los menús (sin blanqueo ni hover fuerte)
 const MENU_TRIGGER =
   "px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-sm " +
   "inline-flex items-center gap-1 hover:bg-neutral-900/80 " +
@@ -2810,9 +2575,22 @@ return (
     </div>
             {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
 
-{sectorsOpen && <SectorsModal sectorsOpen={sectorsOpen} setSectorsOpen={setSectorsOpen} sectors={sectors} sites={sites} isAdmin={isAdminOrSuper} rrhhUsers={rrhhUsers} addSector={addSector} updateSector={updateSector} deleteSector={deleteSector} updateSite={updateSite} handleImportSectorsCSV={handleImportSectorsCSV} downloadSectorsTemplateCSV={downloadSectorsTemplateCSV} setSectorsCsvHelpOpen={setSectorsCsvHelpOpen} setSitesManageOpen={setSitesManageOpen} />}
-{sitesManageOpen && <SitesManageModal sitesManageOpen={sitesManageOpen} setSitesManageOpen={setSitesManageOpen} sites={sites} addSite={addSite} updateSite={updateSite} deleteSite={deleteSite} handleImportSitesCSV={handleImportSitesCSV} downloadSitesTemplateCSV={downloadSitesTemplateCSV} />}
-{sectorsCsvHelpOpen && <SectorsCsvHelpModal sectorsCsvHelpOpen={sectorsCsvHelpOpen} setSectorsCsvHelpOpen={setSectorsCsvHelpOpen} downloadSectorsTemplateCSV={downloadSectorsTemplateCSV} />}
+<SectorsConfigModal
+  open={sectorsOpen}
+  onClose={() => setSectorsOpen(false)}
+  sites={sites}
+  sectors={sectors}
+  combinations={combinations}
+  isAdmin={isAdminOrSuper}
+  rrhhUsers={rrhhUsers}
+  addSite={addSite} updateSite={updateSite} deleteSite={deleteSite}
+  addSector={addSector} updateSector={updateSector} deleteSector={deleteSector}
+  addCombination={addCombination} updateCombination={updateCombination} deleteCombination={deleteCombination}
+  handleImportSitesCSV={handleImportSitesCSV}
+  downloadSitesTemplateCSV={downloadSitesTemplateCSV}
+  handleImportCombinationsCSV={handleImportCombinationsCSV}
+  downloadCombinationsTemplateCSV={downloadCombinationsTemplateCSV}
+/>
 {noNewsOpen && <NoNewsModal noNewsOpen={noNewsOpen} setNoNewsOpen={setNoNewsOpen} selectedKeyForNoNews={selectedKeyForNoNews} setSelectedKeyForNoNews={setSelectedKeyForNoNews} noNewsOptions={noNewsOptions} selectedPeriodId={selectedPeriodId} createNewFile={createNewFile} periodNameById={periodNameById} />}
 {sectorSummaryOpen && <SectorSummaryModal sectorSummaryOpen={sectorSummaryOpen} setSectorSummaryOpen={setSectorSummaryOpen} setSectorSummarySelectedKey={setSectorSummarySelectedKey} setSectorViewQ={setSectorViewQ} setSectorViewSiteQ={setSectorViewSiteQ} setSectorViewUploaderQ={setSectorViewUploaderQ} setSectorViewOnlyPending={setSectorViewOnlyPending} selectedPeriodId={selectedPeriodId} sectorSummary={sectorSummary} sectorSummaryGroupedFiltered={sectorSummaryGroupedFiltered} sectorSummaryExpanded={sectorSummaryExpanded} setSectorSummaryExpanded={setSectorSummaryExpanded} sectorSummarySelectedKey={sectorSummarySelectedKey} sectorViewQ={sectorViewQ} sectorViewSiteQ={sectorViewSiteQ} sectorViewUploaderQ={sectorViewUploaderQ} sectorViewOnlyPending={sectorViewOnlyPending} formatDate={formatDate} userNameOr={userNameOr} />}
 {detailOpen && selectedFile && <DetailModal detailOpen={detailOpen} setDetailOpen={setDetailOpen} selectedFile={selectedFile} setSelected={setSelected} setSelectedThreadId={setSelectedThreadId} selectedThreadId={selectedThreadId} periodNameById={periodNameById} prettyBytes={prettyBytes} formatDate={formatDate} userNameOr={userNameOr} meRole={meRole} me={me} setNote={setNote} openReplyDialog={openReplyDialog} addRowToThread={addRowToThread} addRowInputs={addRowInputs} setAddRowInputs={setAddRowInputs} blankAddRow={blankAddRow} markObservationProcessed={markObservationProcessed} deleteThread={deleteThread} adjustReplyInputs={adjustReplyInputs} setAdjustReplyInputs={setAdjustReplyInputs} answerAdjust={answerAdjust} replyInputs={replyInputs} setReplyInputs={setReplyInputs} answerObservation={answerObservation} />}

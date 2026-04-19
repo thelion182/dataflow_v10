@@ -26,6 +26,7 @@ import * as usersLocal          from './localStorage/usersStorage';
 import * as reclamosLocal       from './localStorage/reclamosStorage';
 import * as reclamosConfigLocal from './localStorage/reclamosConfigStorage';
 import * as auditLocal          from './localStorage/auditStorage';
+import * as combinationsLocal   from './localStorage/combinationsStorage';
 
 // ─── API REST (modo backend — activar con VITE_USE_API=true) ──────────────
 import * as filesAPI          from './api/filesAPI';
@@ -36,6 +37,7 @@ import * as usersAPI          from './api/usersAPI';
 import * as reclamosAPI       from './api/reclamosAPI';
 import * as reclamosConfigAPI from './api/reclamosConfigAPI';
 import * as auditAPI          from './api/auditAPI';
+import * as combinationsAPI   from './api/combinationsAPI';
 
 // ─── Selección automática ─────────────────────────────────────────────────
 const files          = USE_API ? filesAPI          : filesLocal;
@@ -46,6 +48,7 @@ const users          = USE_API ? usersAPI          : usersLocal;
 const reclamos       = USE_API ? reclamosAPI       : reclamosLocal;
 const reclamosConfig = USE_API ? reclamosConfigAPI : reclamosConfigLocal;
 const audit          = USE_API ? auditAPI          : auditLocal;
+const combinations   = USE_API ? combinationsAPI   : combinationsLocal;
 
 export const db = {
 
@@ -60,12 +63,19 @@ export const db = {
   },
 
   // ── Sectores y Sedes ───────────────────────────────────────────────────────
-  // API: GET/PUT /api/sectors  ·  GET/PUT /api/sites
+  // API: GET/PUT /api/sectors  ·  GET/PUT /api/sectors/sites
   sectors: {
     getAllSectors: sectors.getAllSectors,
     saveSectors:  sectors.saveSectors,
     getAllSites:   sectors.getAllSites,
     saveSites:    sectors.saveSites,
+  },
+
+  // ── Combinaciones (sede + sector + subcategoría) ───────────────────────────
+  // API: GET/PUT /api/combinations
+  combinations: {
+    getAll: combinations.getAllCombinations,
+    saveAll: combinations.saveCombinations,
   },
 
   // ── Descargas y contadores de numeración ───────────────────────────────────

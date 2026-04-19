@@ -61,26 +61,28 @@ app.use(session({
 }));
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
-const authRouter      = require('./routes/auth');
-const usersRouter     = require('./routes/users');
-const periodsRouter   = require('./routes/periods');
-const sectorsRouter   = require('./routes/sectors');
-const filesRouter     = require('./routes/files');
+const authRouter         = require('./routes/auth');
+const usersRouter        = require('./routes/users');
+const periodsRouter      = require('./routes/periods');
+const sectorsRouter      = require('./routes/sectors');
+const combinationsRouter = require('./routes/combinations');
+const filesRouter        = require('./routes/files');
 const { router: downloadsRouter } = require('./routes/downloads');
-const reclamosRouter  = require('./routes/reclamos');
+const reclamosRouter     = require('./routes/reclamos');
 const { router: eventsRouter } = require('./routes/events');
-const auditRouter     = require('./routes/audit');
+const auditRouter        = require('./routes/audit');
 
-app.use('/api/auth',      authRouter);
-app.use('/api/users',     usersRouter);
-app.use('/api/periods',   periodsRouter);
-app.use('/api/sectors',   sectorsRouter);
-app.use('/api/sites',     sectorsRouter);      // sectorsRouter maneja /sites también
-app.use('/api/files',     filesRouter);
-app.use('/api/downloads', downloadsRouter);
-app.use('/api/reclamos',  reclamosRouter);
-app.use('/api/events',    eventsRouter);       // SSE — notificaciones en tiempo real
-app.use('/api/audit',     auditRouter);        // log de auditoría del sistema
+app.use('/api/auth',         authRouter);
+app.use('/api/users',        usersRouter);
+app.use('/api/periods',      periodsRouter);
+app.use('/api/sectors',      sectorsRouter);
+app.use('/api/sites',        sectorsRouter);      // sectorsRouter maneja /sites también
+app.use('/api/combinations', combinationsRouter);
+app.use('/api/files',        filesRouter);
+app.use('/api/downloads',    downloadsRouter);
+app.use('/api/reclamos',     reclamosRouter);
+app.use('/api/events',       eventsRouter);       // SSE — notificaciones en tiempo real
+app.use('/api/audit',        auditRouter);        // log de auditoría del sistema
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

@@ -22,15 +22,16 @@ const API_URL = _rawApiUrl.replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window
  */
 async function uploadBinaryToBackend(
   file: File,
-  opts: { fileId?: string; periodId?: string; sector?: string; siteCode?: string }
+  opts: { fileId?: string; periodId?: string; sector?: string; siteCode?: string; subcategory?: string }
 ): Promise<any | null> {
   try {
     const form = new FormData();
     form.append('file', file);
-    if (opts.fileId)   form.append('fileId',   opts.fileId);
-    if (opts.periodId) form.append('periodId', opts.periodId);
-    if (opts.sector)   form.append('sector',   opts.sector);
-    if (opts.siteCode) form.append('siteCode', opts.siteCode);
+    if (opts.fileId)      form.append('fileId',      opts.fileId);
+    if (opts.periodId)    form.append('periodId',    opts.periodId);
+    if (opts.sector)      form.append('sector',      opts.sector);
+    if (opts.siteCode)    form.append('siteCode',    opts.siteCode);
+    if (opts.subcategory) form.append('subcategory', opts.subcategory);
     const res = await fetch(`${API_URL}/files/upload`, {
       method: 'POST',
       credentials: 'include',
@@ -43,7 +44,7 @@ async function uploadBinaryToBackend(
   }
 }
 
-export function useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve, guessSectorForFileName, guessSiteForFileName }: any) {
+export function useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, combinations, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve, detectCombinationForFile }: any) {
   // skipSave: true en API mode (async) hasta que cargue datos; false inmediato en localStorage (sync)
   const skipSave = useRef(true);
   const [files, setFiles] = useState<any[]>(() => {
@@ -402,46 +403,28 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
           && x.statusOverride !== 'eliminado' && !x.eliminated
       );
 
-      // ===== Detectar SEDE por código en el nombre =====
-      const guessedSite = guessSiteForFileName(file.name || "");
-      const siteOpts = guessedSite
-        ? { siteId: guessedSite.id, siteName: guessedSite.name }
-        : undefined;
+      // ===== Detectar combinación (sede + sector + subcategoría) =====
+      const detection = detectCombinationForFile ? detectCombinationForFile(file.name || "") : { ok: false, error: "no_site", siteCode: null };
 
-      // ===== Detectar SECTOR: primero filtrar por sede, luego buscar nombre en filename =====
-      const lowerFileName = (file.name || "").toLowerCase();
-      const normalize = (s: string) => (s || "")
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // quita tildes para comparar
-      const normalizedFileName = normalize(file.name || "");
-
-      let guessedSector: any = null;
-      if (guessedSite) {
-        // 1) Buscar entre sectores de esa sede por nombre en el archivo
-        const sc = (guessedSite.code || "").toUpperCase();
-        const siteSectors = (sectors || []).filter(
-          (s: any) => s?.active && (s.siteCode || "").toUpperCase() === sc
-        );
-        guessedSector = siteSectors.find((s: any) =>
-          s.name && normalizedFileName.includes(normalize(s.name))
-        ) || null;
-      }
-      if (!guessedSector) {
-        // 2) Fallback: buscar por nombre en todos los sectores activos
-        guessedSector = (sectors || []).find((s: any) =>
-          s?.active && s.name && normalizedFileName.includes(normalize(s.name))
-        ) || guessSectorForFileName(file.name || "") || null;
+      if (!detection.ok) {
+        const msg = detection.error === "no_site"
+          ? `"${file.name}"\nNo contiene un código de sede válido (SC, SG, JPII…). El archivo no puede subirse.`
+          : `"${file.name}"\nLa combinación detectada (sede: ${detection.siteCode}) no existe en la configuración. Pedile a un administrador que la cree.`;
+        alert(msg);
+        return;
       }
 
-      const sectorOpts = guessedSector
-        ? { sectorId: guessedSector.id, sectorName: guessedSector.name }
-        : undefined;
+      const combo = detection.combination;
+      const resolvedSiteCode    = combo.siteCode;
+      const resolvedSectorName  = combo.sectorName;
+      const resolvedSubcategory = combo.subcategory || null;
+      const resolvedComboId     = combo.id;
 
-      const opts = { ...(siteOpts || {}), ...(sectorOpts || {}) };
-
-      // Resolver siteCode real (ej "SC") y sectorName para mandar al backend
-      const resolvedSiteCode = guessedSite?.code || null;
-      const resolvedSectorName = guessedSector?.name || null;
+      const opts = {
+        sectorName:    resolvedSectorName,
+        subcategory:   resolvedSubcategory,
+        combinationId: resolvedComboId,
+      };
 
       if (existing && myPerms.actions.bumpVersion) {
         // Sustituye el archivo existente actualizando su versión en la misma fila
@@ -476,10 +459,10 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
                 at: nowISO(),
                 byUsername: me?.username || "sistema",
                 byUserId: me?.id || "",
-                sectorId: f.sectorId ?? (opts as any)?.sectorId ?? null,
-                sectorName: f.sectorName ?? (opts as any)?.sectorName ?? null,
-                siteId: f.siteId ?? (opts as any)?.siteId ?? null,
-                siteName: f.siteName ?? (opts as any)?.siteName ?? null,
+                sectorName:    (opts as any)?.sectorName    ?? f.sectorName    ?? null,
+                subcategory:   (opts as any)?.subcategory   ?? f.subcategory   ?? null,
+                combinationId: (opts as any)?.combinationId ?? f.combinationId ?? null,
+                siteCode:      resolvedSiteCode ?? f.siteCode ?? null,
               },
               `Nueva versión v${nextVer} subida por ${me?.username || "sistema"}`
             )
@@ -497,9 +480,10 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
         let backendFile: any = null;
         if (USE_API) {
           backendFile = await uploadBinaryToBackend(file, {
-            periodId: selectedPeriodId,
-            sector: resolvedSectorName || undefined,
-            siteCode: resolvedSiteCode || undefined,
+            periodId:    selectedPeriodId,
+            sector:      resolvedSectorName  || undefined,
+            siteCode:    resolvedSiteCode    || undefined,
+            subcategory: resolvedSubcategory || undefined,
           });
         }
         createNewFile(file, { ...opts, backendFile });
@@ -515,7 +499,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
 
   function createNewFile(
     file: { name: string; size: number; type?: string },
-    opts?: { sectorId?: string; sectorName?: string; noNews?: boolean; version?: number; seriesKey?: string; siteId?: string; siteName?: string; backendFile?: any }
+    opts?: { sectorName?: string; subcategory?: string; combinationId?: string; noNews?: boolean; version?: number; seriesKey?: string; siteCode?: string; backendFile?: any }
   ) {
     // Si el backend ya subió el archivo, usamos su ID y storagePath
     const backendFile = opts?.backendFile;
@@ -542,11 +526,11 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
       history: [],
       observations: [],
       periodId: selectedPeriodId,
-      sectorId: opts?.sectorId ?? null,
-      sectorName: opts?.sectorName ?? null,
+      siteCode:      opts?.siteCode      ?? null,
+      sectorName:    opts?.sectorName    ?? null,
+      subcategory:   opts?.subcategory   ?? null,
+      combinationId: opts?.combinationId ?? null,
       noNews: !!opts?.noNews,
-      siteId: opts?.siteId ?? null,
-      siteName: opts?.siteName ?? null,
     };
 
     const isNoNews = !!opts?.noNews;

@@ -63,19 +63,20 @@ export function NoNewsModal({ noNewsOpen, setNoNewsOpen, selectedKeyForNoNews, s
               return;
             }
 
-            const { sectorId, siteId, sectorName, siteName } = meta;
+            const { combinationId, siteCode, sectorName, subcategory, siteName } = meta;
+            const subLabel = subcategory ? ` (${subcategory})` : "";
 
             createNewFile(
               {
-                name: `Sin novedades - ${sectorName} - ${siteName}`,
+                name: `Sin novedades - ${sectorName}${subLabel} - ${siteName}`,
                 size: 0,
                 type: "sin_novedades",
               },
               {
-                sectorId,
+                combinationId,
+                siteCode,
                 sectorName,
-                siteId,
-                siteName,
+                subcategory: subcategory || null,
                 noNews: true,
               }
             );
