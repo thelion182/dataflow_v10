@@ -30,6 +30,7 @@ function mapUser(u) {
     lockedUntil:         u.locked_until,
     lastLoginAt:         u.last_login_at,
     createdAt:           u.created_at,
+    permissions:         u.permissions || null,
   };
 }
 
@@ -39,7 +40,7 @@ router.get('/', requireRole('admin', 'superadmin'), async (req, res) => {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, must_change_password,
               range_start, range_end, range_txt_start, range_txt_end,
-              active, login_attempts, locked_until, last_login_at, created_at
+              active, login_attempts, locked_until, last_login_at, created_at, permissions
        FROM users ORDER BY display_name`
     );
     res.json(result.rows.map(mapUser));
@@ -69,8 +70,8 @@ router.put('/', requireRole('superadmin'), async (req, res) => {
       await client.query(
         `INSERT INTO users (id, username, display_name, email, role, password_hash,
                             must_change_password, range_start, range_end,
-                            range_txt_start, range_txt_end, active)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                            range_txt_start, range_txt_end, active, permissions)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          ON CONFLICT (id) DO UPDATE SET
            username             = EXCLUDED.username,
            display_name         = EXCLUDED.display_name,
@@ -82,10 +83,12 @@ router.put('/', requireRole('superadmin'), async (req, res) => {
            range_end            = EXCLUDED.range_end,
            range_txt_start      = EXCLUDED.range_txt_start,
            range_txt_end        = EXCLUDED.range_txt_end,
-           active               = EXCLUDED.active`,
+           active               = EXCLUDED.active,
+           permissions          = COALESCE(EXCLUDED.permissions, users.permissions)`,
         [u.id, u.username, u.displayName, u.email, u.role, hash,
          !!u.mustChangePassword, u.rangeStart || null, u.rangeEnd || null,
-         u.rangeTxtStart || null, u.rangeTxtEnd || null, u.active !== false]
+         u.rangeTxtStart || null, u.rangeTxtEnd || null, u.active !== false,
+         u.permissions ? JSON.stringify(u.permissions) : null]
       );
     }
     await client.query('COMMIT');
@@ -110,7 +113,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, must_change_password,
               range_start, range_end, range_txt_start, range_txt_end,
-              active, login_attempts, locked_until, last_login_at, created_at
+              active, login_attempts, locked_until, last_login_at, created_at, permissions
        FROM users WHERE id = $1`,
       [req.params.id]
     );
@@ -136,8 +139,8 @@ router.put('/:id', requireRole('admin', 'superadmin'), async (req, res) => {
     await pool.query(
       `INSERT INTO users (id, username, display_name, email, role, password_hash,
                           must_change_password, range_start, range_end,
-                          range_txt_start, range_txt_end, active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                          range_txt_start, range_txt_end, active, permissions)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        ON CONFLICT (id) DO UPDATE SET
          username             = EXCLUDED.username,
          display_name         = EXCLUDED.display_name,
@@ -149,10 +152,12 @@ router.put('/:id', requireRole('admin', 'superadmin'), async (req, res) => {
          range_end            = EXCLUDED.range_end,
          range_txt_start      = EXCLUDED.range_txt_start,
          range_txt_end        = EXCLUDED.range_txt_end,
-         active               = EXCLUDED.active`,
+         active               = EXCLUDED.active,
+         permissions          = COALESCE(EXCLUDED.permissions, users.permissions)`,
       [req.params.id, u.username, u.displayName, u.email, u.role, hash,
        !!u.mustChangePassword, u.rangeStart || null, u.rangeEnd || null,
-       u.rangeTxtStart || null, u.rangeTxtEnd || null, u.active !== false]
+       u.rangeTxtStart || null, u.rangeTxtEnd || null, u.active !== false,
+       u.permissions ? JSON.stringify(u.permissions) : null]
     );
     res.json({ ok: true });
   } catch (err) {

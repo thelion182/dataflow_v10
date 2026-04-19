@@ -584,7 +584,7 @@ function answerAdjust(fileId: string, threadId: string, rowId: string, texto: st
       th.answeredByUserId = me?.id || "";
       th.answeredAt = now;
 
-      // También marcar todas las rows como respondidas
+      // También marcar todas las rows como respondidas y procesadas
       for (const row of (th.rows || [])) {
         if (!row.answered) {
           row.answered = true;
@@ -592,6 +592,12 @@ function answerAdjust(fileId: string, threadId: string, rowId: string, texto: st
           row.answeredByUsername = me?.username || "sueldos";
           row.answeredByUserId = me?.id || "";
           row.answeredAt = now;
+        }
+        if (!row.processed) {
+          row.processed = true;
+          row.processedByUsername = me?.username || "sueldos";
+          row.processedByUserId = me?.id || "";
+          row.processedAt = now;
         }
       }
 

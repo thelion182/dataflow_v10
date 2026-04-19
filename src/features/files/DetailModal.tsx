@@ -78,15 +78,28 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                           <path d="M14 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9z" />
                           <polyline points="14 3 14 9 20 9" />
                         </svg>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <div className="text-neutral-200">
                             {h.action}{" "}
                             <span className="text-neutral-500">— {formatDate(h.t)}</span>
                           </div>
-                          <div className="text-xs text-neutral-500">
-                            Por: {userNameOr(h.byUsername)}{" "}
-                            {h.details ? `• ${h.details}` : ""}
-                          </div>
+                          {(h.action === "Arreglos solicitados" || h.action === "Arreglo respondido") && h.details ? (
+                            <div className={`mt-1.5 rounded-xl border px-3 py-2 text-xs whitespace-pre-wrap ${
+                              h.action === "Arreglos solicitados"
+                                ? "bg-amber-950/30 border-amber-800/40 text-amber-200/80"
+                                : "bg-emerald-950/30 border-emerald-800/40 text-emerald-200/80"
+                            }`}>
+                              {h.details}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-neutral-500">
+                              Por: {userNameOr(h.byUsername)}{" "}
+                              {h.details ? `• ${h.details}` : ""}
+                            </div>
+                          )}
+                          {(h.action === "Arreglos solicitados" || h.action === "Arreglo respondido") && (
+                            <div className="text-xs text-neutral-500 mt-0.5">Por: {userNameOr(h.byUsername)}</div>
+                          )}
                         </div>
                       </li>
                     ))}

@@ -27,7 +27,7 @@ router.post('/login', async (req, res) => {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, password_hash,
               must_change_password, active, login_attempts, locked_until,
-              range_start, range_end, range_txt_start, range_txt_end
+              range_start, range_end, range_txt_start, range_txt_end, permissions
        FROM users WHERE LOWER(username) = LOWER($1)`,
       [username]
     );
@@ -80,6 +80,7 @@ router.post('/login', async (req, res) => {
       rangeEnd:          user.range_end,
       rangeTxtStart:     user.range_txt_start,
       rangeTxtEnd:       user.range_txt_end,
+      permissions:       user.permissions || null,
     });
   } catch (err) {
     console.error('[auth] login:', err);
@@ -98,7 +99,7 @@ router.get('/me', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, must_change_password,
-              range_start, range_end, range_txt_start, range_txt_end
+              range_start, range_end, range_txt_start, range_txt_end, permissions
        FROM users WHERE id = $1`,
       [req.session.userId]
     );
@@ -115,6 +116,7 @@ router.get('/me', async (req, res) => {
       rangeEnd:          user.range_end,
       rangeTxtStart:     user.range_txt_start,
       rangeTxtEnd:       user.range_txt_end,
+      permissions:       user.permissions || null,
     });
   } catch (err) {
     console.error('[auth] me:', err);

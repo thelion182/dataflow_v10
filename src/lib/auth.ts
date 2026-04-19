@@ -185,7 +185,10 @@ export async function attemptLogin(username: string, password: string) {
         role: data.role,
         active: true,
         mustChangePassword: data.mustChangePassword || false,
-        permissions: structuredClone(ROLE_DEFAULT_PERMISSIONS[data.role] || ROLE_DEFAULT_PERMISSIONS.rrhh),
+        // Usar permisos del servidor si existen, sino los defaults del rol
+        permissions: data.permissions
+          ? structuredClone(data.permissions)
+          : structuredClone(ROLE_DEFAULT_PERMISSIONS[data.role] || ROLE_DEFAULT_PERMISSIONS.rrhh),
         rangeStart: data.rangeStart ?? undefined,
         rangeEnd: data.rangeEnd ?? undefined,
         rangeTxtStart: data.rangeTxtStart ?? undefined,
@@ -494,5 +497,16 @@ export function adminSetPermissions(userId: string, permissions: any) {
 
   users[idx].permissions = structuredClone(permissions);
   saveUsers(users);
+
+  if (USE_API) {
+    const { passwordHash: _omit, ...safe } = users[idx] as any;
+    fetch(`${API_URL}/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(safe),
+    }).catch(() => {});
+  }
+
   return { ok: true };
 }
