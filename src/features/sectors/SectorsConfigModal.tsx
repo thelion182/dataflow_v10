@@ -30,7 +30,7 @@ export function SectorsConfigModal({
   const [newSectorName, setNewSectorName] = useState('');
 
   // ── nueva combinación inline ───────────────────────────────────
-  const [newCombo, setNewCombo] = useState({ siteCode: '', sectorName: '', subcategory: '', ownerUserId: '', allowNoNews: true });
+  const [newCombo, setNewCombo] = useState({ siteCode: '', sectorName: '', subcategory: '', cc: '', ownerUserId: '', allowNoNews: true });
 
   // ── nueva sede inline ──────────────────────────────────────────
   const [newSite, setNewSite] = useState({ code: '', name: '' });
@@ -58,19 +58,20 @@ export function SectorsConfigModal({
   }
 
   function handleAddCombo() {
-    const { siteCode, sectorName, subcategory, ownerUserId, allowNoNews } = newCombo;
+    const { siteCode, sectorName, subcategory, cc, ownerUserId, allowNoNews } = newCombo;
     if (!siteCode || !sectorName.trim()) { alert('Sede y sector son obligatorios.'); return; }
     const u = (rrhhUsers || []).find((x: any) => x.id === ownerUserId);
     addCombination({
       siteCode,
       sectorName: sectorName.trim(),
       subcategory: subcategory.trim() || null,
+      cc: cc.trim() || null,
       ownerUserId: ownerUserId || null,
       ownerUsername: u ? (u.displayName || u.username) : null,
       allowNoNews,
       active: true,
     });
-    setNewCombo({ siteCode: '', sectorName: '', subcategory: '', ownerUserId: '', allowNoNews: true });
+    setNewCombo({ siteCode: '', sectorName: '', subcategory: '', cc: '', ownerUserId: '', allowNoNews: true });
   }
 
   const TABS: { key: Tab; label: string; count: number }[] = [
@@ -356,6 +357,7 @@ export function SectorsConfigModal({
                       <th className="text-left px-3 py-2.5 font-normal w-20">Sede</th>
                       <th className="text-left px-3 py-2.5 font-normal">Sector</th>
                       <th className="text-left px-3 py-2.5 font-normal">Subcategoría</th>
+                      <th className="text-left px-3 py-2.5 font-normal w-24">CC</th>
                       <th className="text-left px-3 py-2.5 font-normal w-28">Responsable</th>
                       <th className="text-left px-3 py-2.5 font-normal w-24">Sin nov.</th>
                       <th className="text-left px-3 py-2.5 font-normal w-20">Estado</th>
@@ -364,7 +366,7 @@ export function SectorsConfigModal({
                   </thead>
                   <tbody>
                     {visibleCombos.length === 0 && (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-neutral-500">
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-neutral-500">
                         Sin combinaciones. {isAdmin ? 'Creá la primera abajo.' : ''}
                       </td></tr>
                     )}
@@ -406,6 +408,18 @@ export function SectorsConfigModal({
                             />
                           ) : (
                             <span className="text-neutral-500 italic">{c.subcategory || '—'}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {isAdmin ? (
+                            <input
+                              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-2 py-1 text-xs text-neutral-300 placeholder:text-neutral-700"
+                              value={c.cc || ''}
+                              placeholder="—"
+                              onChange={(e) => updateCombination(c.id, { cc: e.target.value || null })}
+                            />
+                          ) : (
+                            <span className="text-neutral-400 text-xs">{c.cc || '—'}</span>
                           )}
                         </td>
                         <td className="px-3 py-2">
@@ -488,6 +502,12 @@ export function SectorsConfigModal({
                       placeholder="Subcategoría (vacío si no aplica)"
                       value={newCombo.subcategory}
                       onChange={(e) => setNewCombo(v => ({ ...v, subcategory: e.target.value }))}
+                    />
+                    <input
+                      className="w-24 rounded-xl bg-neutral-800 border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 placeholder:text-neutral-700"
+                      placeholder="CC (opcional)"
+                      value={newCombo.cc}
+                      onChange={(e) => setNewCombo(v => ({ ...v, cc: e.target.value }))}
                     />
                     <select
                       className="rounded-xl bg-neutral-800 border border-neutral-700 px-3 py-1.5 text-xs text-neutral-100"

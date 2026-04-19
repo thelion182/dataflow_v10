@@ -4,7 +4,7 @@ import AutoGrowTextarea from "../../components/AutoGrowTextarea";
 import { prettyBytes } from "../../lib/bytes";
 import { formatDate } from "../../lib/time";
 import { typeBadge, userNameOr } from "../shared/uiHelpers";
-export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelected, setSelectedThreadId, selectedThreadId, periodNameById, prettyBytes, formatDate, userNameOr, meRole, me, setNote, openReplyDialog, addRowToThread, addRowInputs, setAddRowInputs, blankAddRow, markObservationProcessed, deleteThread, adjustReplyInputs, setAdjustReplyInputs, answerAdjust, replyInputs, setReplyInputs, answerObservation }: any) {
+export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelected, setSelectedThreadId, selectedThreadId, periodNameById, prettyBytes, formatDate, userNameOr, meRole, me, setNote, openReplyDialog, addRowToThread, addRowInputs, setAddRowInputs, blankAddRow, markObservationProcessed, deleteThread, adjustReplyInputs, setAdjustReplyInputs, answerAdjust, answerAdjustThread, replyInputs, setReplyInputs, answerObservation }: any) {
   return (
     <>
       {/* MODAL: Detalle */}
@@ -370,24 +370,29 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                           )}
 
                           {th.tipo === "arreglo" && (
-                            <div className="mt-3 space-y-2">
-                              <div className="text-sm text-neutral-200 whitespace-pre-wrap">
-                                {th.text}
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-2">
-                                {th.answered ? (
-                                  <span className="text-xs px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-600/30 text-emerald-300">
-                                    Resuelto
+                            <div className="mt-3 space-y-3">
+                              {/* Cuerpo del arreglo — resaltado */}
+                              <div className="rounded-xl border border-orange-700/50 bg-orange-950/30 p-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-400 bg-orange-900/40 border border-orange-700/40 px-2 py-0.5 rounded-full">
+                                    Arreglo de Información
                                   </span>
-                                ) : (
-                                  <span className="text-xs px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-600/30 text-amber-300">
-                                    Pendiente
-                                  </span>
-                                )}
-                                <span className="text-xs text-neutral-500">
-                                  Creado por {userNameOr(th.createdByUsername)} • {formatDate(th.createdAt)}
-                                </span>
+                                  {th.answered ? (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 border border-emerald-700/40 text-emerald-300">
+                                      Resuelto
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-300">
+                                      Pendiente de respuesta
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-neutral-100 whitespace-pre-wrap font-medium leading-relaxed">
+                                  {th.text}
+                                </div>
+                                <div className="text-[11px] text-neutral-500 mt-2">
+                                  Enviado por {userNameOr(th.createdByUsername)} • {formatDate(th.createdAt)}
+                                </div>
                               </div>
 
                               {!th.answered && (meRole === "sueldos" || meRole === "admin") && (
@@ -403,19 +408,27 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                   />
                                   <div className="mt-2 flex justify-end">
                                     <button
-                                      onClick={() => answerAdjust(selectedFile.id, th.id)}
-                                      className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-sm"
+                                      onClick={() => {
+                                        const texto = adjustReplyInputs[th.id] || "";
+                                        if (!texto.trim()) { alert("Escribí una respuesta antes de confirmar."); return; }
+                                        answerAdjustThread(selectedFile.id, th.id, texto);
+                                        setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: "" }));
+                                      }}
+                                      className="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm text-white"
                                     >
-                                      Responder arreglo
+                                      Confirmar respuesta
                                     </button>
                                   </div>
                                 </div>
                               )}
 
-                              {th.answered && (
-                                <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
+                              {th.answered && th.answerText && (
+                                <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/25 p-3">
+                                  <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1.5">
+                                    Respuesta de Sueldos
+                                  </div>
                                   <div className="text-sm text-neutral-100 whitespace-pre-wrap">{th.answerText}</div>
-                                  <div className="text-xs text-neutral-500 mt-1">
+                                  <div className="text-[11px] text-neutral-500 mt-1.5">
                                     Por: {userNameOr(th.answeredByUsername)} • {formatDate(th.answeredAt)}
                                   </div>
                                 </div>

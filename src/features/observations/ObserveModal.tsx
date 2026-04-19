@@ -4,20 +4,41 @@ import AutoGrowTextarea from "../../components/AutoGrowTextarea";
 
 export function ObserveModal({
   observeDialog, fileForObserve, periodNameById, prettyBytes,
-  setObsCell, addObsRow, removeObsRow, cancelObserve, confirmObserve, sectors,
+  setObsCell, addObsRow, removeObsRow, cancelObserve, confirmObserve, sectors, combinations,
 }: any) {
 
-  // Todos los sectores activos, SIN deduplicar — cada combo sector+sede es una opción
+  // Construir opciones de sector desde combinations activas (con cc),
+  // con fallback a sectors para compatibilidad
   const sectorOptions = React.useMemo(() => {
+    const combos = (combinations || []).filter((c: any) => !!c?.active && !!c?.sectorName);
+    if (combos.length > 0) {
+      // Deduplicar por sectorName+cc (una opción por combinación única sede+sector)
+      const seen = new Set<string>();
+      return combos.reduce((acc: any[], c: any) => {
+        const key = `${c.siteCode}|${c.sectorName}|${c.cc || ''}`;
+        if (!seen.has(key)) { seen.add(key); acc.push(c); }
+        return acc;
+      }, []);
+    }
+    // Fallback: sectors legacy
     return (sectors || []).filter((s: any) => !!s?.active && !!s?.name);
-  }, [sectors]);
+  }, [combinations, sectors]);
+
+  const isComboBased = (combinations || []).filter((c: any) => c?.active).length > 0;
 
   // Al elegir un sector del select: setea nombre Y cc
-  function handleSectorSelect(i: number, sectorId: string) {
-    const s = sectorOptions.find((x: any) => x.id === sectorId);
-    if (!s) { setObsCell(i, "sector", ""); setObsCell(i, "cc", ""); return; }
-    setObsCell(i, "sector", s.name);
-    if (s.cc) setObsCell(i, "cc", s.cc);
+  function handleSectorSelect(i: number, optId: string) {
+    if (isComboBased) {
+      const c = sectorOptions.find((x: any) => x.id === optId);
+      if (!c) { setObsCell(i, "sector", ""); setObsCell(i, "cc", ""); return; }
+      setObsCell(i, "sector", c.sectorName);
+      if (c.cc) setObsCell(i, "cc", c.cc);
+    } else {
+      const s = sectorOptions.find((x: any) => x.id === optId);
+      if (!s) { setObsCell(i, "sector", ""); setObsCell(i, "cc", ""); return; }
+      setObsCell(i, "sector", s.name);
+      if (s.cc) setObsCell(i, "cc", s.cc);
+    }
   }
 
   if (!observeDialog.open) return null;
@@ -99,15 +120,21 @@ export function ObserveModal({
                   <label className="block text-[11px] text-neutral-500 mb-1">Sector</label>
                   {sectorOptions.length > 0 ? (
                     <select
-                      value={sectorOptions.find((s: any) => s.name === r.sector && (s.cc || "") === (r.cc || ""))?.id || ""}
+                      value={
+                        isComboBased
+                          ? (sectorOptions.find((c: any) => c.sectorName === r.sector && (c.cc || "") === (r.cc || ""))?.id || "")
+                          : (sectorOptions.find((s: any) => s.name === r.sector && (s.cc || "") === (r.cc || ""))?.id || "")
+                      }
                       onChange={(e) => handleSectorSelect(i, e.target.value)}
                       className="w-full px-3 py-1.5 rounded-xl bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 outline-none focus:border-neutral-500"
                     >
                       <option value="">(Elegir sector…)</option>
-                      {sectorOptions.map((s: any) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}{s.siteCode ? ` — ${s.siteCode}` : ""}
-                          {s.cc ? ` (${s.cc})` : ""}
+                      {sectorOptions.map((opt: any) => (
+                        <option key={opt.id} value={opt.id}>
+                          {isComboBased
+                            ? `${opt.sectorName}${opt.siteCode ? ` — ${opt.siteCode}` : ""}${opt.cc ? ` (${opt.cc})` : ""}`
+                            : `${opt.name}${opt.siteCode ? ` — ${opt.siteCode}` : ""}${opt.cc ? ` (${opt.cc})` : ""}`
+                          }
                         </option>
                       ))}
                     </select>
@@ -131,14 +158,13 @@ export function ObserveModal({
                     placeholder="CC001 o escribí…"
                   />
                   <datalist id={`cc-list-${r.id}`}>
-                    {/* Opciones únicas de CC de los sectores activos */}
                     {Array.from(new Map(
                       sectorOptions
-                        .filter((s: any) => !!s.cc)
-                        .map((s: any) => [s.cc, s])
-                    ).values()).map((s: any) => (
-                      <option key={s.id} value={s.cc}>
-                        {s.name}{s.siteCode ? ` — ${s.siteCode}` : ""}
+                        .filter((opt: any) => !!(isComboBased ? opt.cc : opt.cc))
+                        .map((opt: any) => [opt.cc, opt])
+                    ).values()).map((opt: any) => (
+                      <option key={opt.id} value={opt.cc}>
+                        {isComboBased ? opt.sectorName : opt.name}{opt.siteCode ? ` — ${opt.siteCode}` : ""}
                       </option>
                     ))}
                   </datalist>

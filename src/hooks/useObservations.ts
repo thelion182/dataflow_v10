@@ -567,6 +567,49 @@ function answerAdjust(fileId: string, threadId: string, rowId: string, texto: st
   });
 }
 
+  // Responde un thread de arreglo completo (desde el botón "Responder arreglo")
+  function answerAdjustThread(fileId: string, threadId: string, texto: string) {
+    const t = (texto || "").trim();
+
+    updateFile(fileId, (f) => {
+      const nf = sclone(f);
+      const th = nf.observations?.find((o: any) => o.id === threadId);
+      if (!th || th.tipo !== "arreglo") return nf;
+
+      const now = nowISO();
+      // Marcar el thread como respondido
+      th.answered = true;
+      th.answerText = t;
+      th.answeredByUsername = me?.username || "sueldos";
+      th.answeredByUserId = me?.id || "";
+      th.answeredAt = now;
+
+      // También marcar todas las rows como respondidas
+      for (const row of (th.rows || [])) {
+        if (!row.answered) {
+          row.answered = true;
+          row.answerText = t;
+          row.answeredByUsername = me?.username || "sueldos";
+          row.answeredByUserId = me?.id || "";
+          row.answeredAt = now;
+        }
+      }
+
+      const pending = hasPendingDoubts(nf);
+      nf.status = pending ? "observado" : "duda_respondida";
+
+      return addHistoryEntry(nf, "Arreglo respondido", `Sueldos respondió el arreglo${t ? `: "${t}"` : ""}`);
+    });
+
+    publishEvent({
+      type: "observation_answered",
+      title: "Arreglo respondido",
+      message: `${me?.username || "sistema"} respondió un arreglo`,
+      fileId,
+      periodId: (files.find(x => x.id === fileId)?.periodId),
+    });
+  }
+
   return {
     // state
     observeDialog, setObserveDialog,
@@ -588,6 +631,6 @@ function answerAdjust(fileId: string, threadId: string, rowId: string, texto: st
     answerObservation, markObservationProcessed,
     addRowToThread, deleteThread,
     openFileDoubt, confirmFileDoubt, cancelFileDoubt,
-    openAdjustForFile, confirmAdjust, cancelAdjust, answerAdjust,
+    openAdjustForFile, confirmAdjust, cancelAdjust, answerAdjust, answerAdjustThread,
   };
 }

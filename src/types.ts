@@ -219,6 +219,7 @@ export type Combination = {
   siteCode: string;       // FK → SiteConfig.code
   sectorName: string;     // nombre del sector
   subcategory: string | null;   // subcategoría o null = "sin subcategoría"
+  cc: string | null;            // centro de costo (para modal de dudas)
   ownerUserId: string | null;
   ownerUsername: string | null;
   allowNoNews: boolean;

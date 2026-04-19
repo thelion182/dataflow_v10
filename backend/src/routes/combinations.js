@@ -10,6 +10,7 @@ function mapCombination(r) {
     siteCode:      r.site_code,
     sectorName:    r.sector_name,
     subcategory:   r.subcategory || null,
+    cc:            r.cc || null,
     ownerUserId:   r.owner_user_id,
     ownerUsername: r.owner_username,
     allowNoNews:   r.allow_no_news,
@@ -42,18 +43,19 @@ router.put('/', requireRole('admin', 'superadmin'), async (req, res) => {
     for (const c of items) {
       if (!c.id || !c.siteCode || !c.sectorName) continue;
       await client.query(
-        `INSERT INTO combinations (id, site_code, sector_name, subcategory,
+        `INSERT INTO combinations (id, site_code, sector_name, subcategory, cc,
                                    owner_user_id, owner_username, allow_no_news, active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (id) DO UPDATE SET
            site_code      = EXCLUDED.site_code,
            sector_name    = EXCLUDED.sector_name,
            subcategory    = EXCLUDED.subcategory,
+           cc             = EXCLUDED.cc,
            owner_user_id  = EXCLUDED.owner_user_id,
            owner_username = EXCLUDED.owner_username,
            allow_no_news  = EXCLUDED.allow_no_news,
            active         = EXCLUDED.active`,
-        [c.id, c.siteCode, c.sectorName, c.subcategory || null,
+        [c.id, c.siteCode, c.sectorName, c.subcategory || null, c.cc || null,
          c.ownerUserId || null, c.ownerUsername || null,
          c.allowNoNews !== false, c.active !== false]
       );
@@ -82,21 +84,22 @@ router.put('/', requireRole('admin', 'superadmin'), async (req, res) => {
 
 // ── POST /api/combinations  (crear una) ─────────────────────────────────────
 router.post('/', requireRole('admin', 'superadmin'), async (req, res) => {
-  const { id, siteCode, sectorName, subcategory, ownerUserId, ownerUsername, allowNoNews, active } = req.body;
+  const { id, siteCode, sectorName, subcategory, cc, ownerUserId, ownerUsername, allowNoNews, active } = req.body;
   if (!siteCode || !sectorName) return res.status(400).json({ error: 'siteCode y sectorName son obligatorios' });
   const { v4: uuidv4 } = require('uuid');
   const newId = id || uuidv4();
   try {
     await pool.query(
-      `INSERT INTO combinations (id, site_code, sector_name, subcategory,
+      `INSERT INTO combinations (id, site_code, sector_name, subcategory, cc,
                                  owner_user_id, owner_username, allow_no_news, active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (site_code, sector_name, subcategory) DO UPDATE SET
+         cc             = EXCLUDED.cc,
          owner_user_id  = EXCLUDED.owner_user_id,
          owner_username = EXCLUDED.owner_username,
          allow_no_news  = EXCLUDED.allow_no_news,
          active         = EXCLUDED.active`,
-      [newId, siteCode, sectorName, subcategory || null,
+      [newId, siteCode, sectorName, subcategory || null, cc || null,
        ownerUserId || null, ownerUsername || null,
        allowNoNews !== false, active !== false]
     );

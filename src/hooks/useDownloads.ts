@@ -234,7 +234,7 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
     const fOriginal = files.find((x) => x.id === id);
     if (!fOriginal) return;
   
-    if (!USE_API && !fOriginal.blobUrl) {
+    if (!USE_API && !fOriginal.blobUrl && !fOriginal.noNews) {
       alert("Este archivo no está en memoria (recarga previa). Subí uno nuevo para probar.");
       return;
     }
@@ -365,10 +365,14 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
     }
 
   
+    // Archivos "Sin novedades" no tienen binario — solo se marcan, no se descargan
+    if (fOriginal.noNews) return;
+
     // Disparar la descarga física en el browser con el nombre final calculado
     if (USE_API) {
       // En API mode: bajar como blob para poder renombrar (a.download se ignora en cross-origin)
       const res = await fetch(`${API_URL}/files/${fOriginal.id}/download`, { credentials: 'include' });
+      if (!res.ok) return; // silencioso — puede no tener storage_path
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -609,12 +613,17 @@ async function downloadSelectedAsZip() {
       }
     }
 
+    // Archivos "Sin novedades" no tienen binario — no se agregan al ZIP
+    if (f.noNews) { added++; continue; }
+
     // Añadimos el archivo (con el nombre ya decidido) al ZIP
     const fileUrl = USE_API
       ? `${API_URL}/files/${f.id}/download`
       : f.blobUrl;
-    const blob = await blobFromObjectURL(fileUrl);
-    zip.file(finalName, blob);
+    try {
+      const blob = await blobFromObjectURL(fileUrl);
+      zip.file(finalName, blob);
+    } catch { /* si falla el binario, salteamos este archivo */ }
     added++;
   }
 
