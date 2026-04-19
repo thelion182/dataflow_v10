@@ -19,7 +19,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 // ── GET /api/downloads/counters ─────────────────────────────────────────────
-// Devuelve { "periodId": number } — mapa de contadores del usuario actual
+// Devuelve { [periodId]: { [userId]: current } } — solo contadores del usuario actual
 router.get('/counters', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -27,7 +27,9 @@ router.get('/counters', requireAuth, async (req, res) => {
       [req.session.userId]
     );
     const counters = {};
-    result.rows.forEach((r) => { counters[r.period_id] = r.current; });
+    result.rows.forEach((r) => {
+      counters[r.period_id] = { [req.session.userId]: r.current };
+    });
     res.json(counters);
   } catch (err) {
     console.error('[downloads] GET /counters:', err);
@@ -36,20 +38,25 @@ router.get('/counters', requireAuth, async (req, res) => {
 });
 
 // ── PUT /api/downloads/counters ─────────────────────────────────────────────
+// Acepta { [periodId]: { [userId]: number } }
 router.put('/counters', requireAuth, async (req, res) => {
-  const counters = req.body; // { periodId: number }
+  const counters = req.body;
   if (typeof counters !== 'object') return res.status(400).json({ error: 'Body inválido' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (const [periodId, current] of Object.entries(counters)) {
-      await client.query(
-        `INSERT INTO download_counters (user_id, period_id, current)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (user_id, period_id) DO UPDATE SET current = EXCLUDED.current`,
-        [req.session.userId, periodId, current]
-      );
+    for (const [periodId, userMap] of Object.entries(counters)) {
+      if (!userMap || typeof userMap !== 'object') continue;
+      for (const [, current] of Object.entries(userMap)) {
+        if (typeof current !== 'number') continue;
+        await client.query(
+          `INSERT INTO download_counters (user_id, period_id, current)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, period_id) DO UPDATE SET current = EXCLUDED.current`,
+          [req.session.userId, periodId, current]
+        );
+      }
     }
     await client.query('COMMIT');
     res.json({ ok: true });
@@ -133,14 +140,46 @@ router.put('/downloaded', requireAuth, async (req, res) => {
   }
 });
 
-// ── GET /api/downloads/logs ─────────────────────────────────────────────────
-router.get('/logs', requireRole('admin', 'superadmin'), async (req, res) => {
+// ── GET /api/downloads/my-numbers ───────────────────────────────────────────
+// Devuelve array de números ya usados por el usuario actual, opcionalmente por período
+// Usado por Sueldos para saber qué números no reasignar al reloguear
+router.get('/my-numbers', requireAuth, async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT id, user_id AS "userId", file_id AS "fileId",
-              file_name AS "fileName", numero, downloaded_at AS "downloadedAt"
-       FROM download_logs ORDER BY downloaded_at DESC LIMIT 1000`
-    );
+    const { periodId } = req.query;
+    let query = `SELECT dl.numero FROM download_logs dl
+                 LEFT JOIN files f ON f.id = dl.file_id
+                 WHERE dl.user_id = $1 AND dl.numero IS NOT NULL`;
+    const params = [req.session.userId];
+    if (periodId) {
+      params.push(periodId);
+      query += ` AND f.period_id = $${params.length}`;
+    }
+    const result = await pool.query(query, params);
+    res.json(result.rows.map((r) => r.numero));
+  } catch (err) {
+    console.error('[downloads] GET /my-numbers:', err);
+    res.status(500).json({ error: 'Error al obtener números usados' });
+  }
+});
+
+// ── GET /api/downloads/logs ─────────────────────────────────────────────────
+// Admin/superadmin: todos los logs. Sueldos: solo los propios.
+router.get('/logs', requireAuth, async (req, res) => {
+  const isAdmin = ['admin', 'superadmin'].includes(req.session.role);
+  try {
+    let query, params;
+    if (isAdmin) {
+      query = `SELECT id, user_id AS "userId", file_id AS "fileId",
+                      file_name AS "fileName", numero, downloaded_at AS "downloadedAt"
+               FROM download_logs ORDER BY downloaded_at DESC LIMIT 1000`;
+      params = [];
+    } else {
+      query = `SELECT id, user_id AS "userId", file_id AS "fileId",
+                      file_name AS "fileName", numero, downloaded_at AS "downloadedAt"
+               FROM download_logs WHERE user_id = $1 ORDER BY downloaded_at DESC LIMIT 500`;
+      params = [req.session.userId];
+    }
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error('[downloads] GET /logs:', err);

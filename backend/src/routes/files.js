@@ -54,7 +54,7 @@ function mapFile(f) {
     id:             f.id,
     periodId:       f.period_id,
     name:           f.name,
-    size:           parseInt(f.size),
+    size:           parseInt(f.size) || 0,
     mimeType:       f.mime_type,
     fileType:       getFileType(f.name, f.mime_type),
     status:         f.status,

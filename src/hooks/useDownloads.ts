@@ -15,6 +15,10 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
 
   const skipSave = useRef(true);
 
+  // usedNumbersByPeriod: { [periodId]: Set<number> } — números ya usados por el usuario en cada período
+  // Se carga desde el backend (download_logs) al login para mantener continuidad entre sesiones
+  const [usedNumbersByPeriod, setUsedNumbersByPeriod] = useState<Record<string, Set<number>>>({});
+
   const [downloadCounters, setDownloadCounters] = useState(() => {
     const r = db.downloads.getCounters();
     if (r && typeof r === 'object' && typeof (r as any).then !== 'function') { skipSave.current = false; return r; }
@@ -45,6 +49,26 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
     const rl = db.downloads.getLogs();
     if (rl && typeof (rl as any).then === 'function') {
       (rl as any).then((v: any) => { if (Array.isArray(v)) setDownloadLogs(v); }).catch(() => {});
+    }
+    // Cargar números ya usados desde el backend (para sueldos, continuidad entre sesiones)
+    if (USE_API && me?.role === 'sueldos') {
+      fetch(`${API_URL}/downloads/my-numbers`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((nums: number[]) => {
+          if (!Array.isArray(nums)) return;
+          // Agrupar por período vía download_logs (sin periodId en my-numbers usamos todos juntos)
+          // Para el Set global por usuario, lo guardamos bajo clave especial y luego complementamos con logs
+          setUsedNumbersByPeriod((prev) => {
+            const next = { ...prev };
+            // Entramos todos como "global" para usarlos en getCurrentUsedForPeriod
+            if (!next['__all__']) next['__all__'] = new Set<number>();
+            const s = new Set(next['__all__']);
+            nums.forEach((n) => s.add(n));
+            next['__all__'] = s;
+            return next;
+          });
+        })
+        .catch(() => {});
     }
   }, [me?.id]);
 
@@ -96,12 +120,12 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
       return null;
     }
 
-    // Reservamos los últimos ~100 números del rango para archivos .txt
-    // Ej: 601–800  => noTxt: 601–699, txt: 700–800
-    let txtStart = rangeEnd - 100;
-    if (txtStart <= rangeStart) {
-      txtStart = rangeStart + 1;
-    }
+    // Dividir exactamente por la mitad:
+    // Ej: 600–799 (200 nums) => noTxt: 600–699, txt: 700–799
+    // Ej: 200–399 (200 nums) => noTxt: 200–299, txt: 300–399
+    const total = rangeEnd - rangeStart + 1;
+    const half = Math.floor(total / 2);
+    const txtStart = rangeStart + half;
 
     const nonTxtStart = rangeStart;
     const nonTxtEnd = txtStart - 1;
@@ -110,16 +134,32 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
     return { nonTxtStart, nonTxtEnd, txtStart, txtEnd };
   }
 
-  function buildUsedNumbersForUserInPeriod(userId: string, periodId: string) {
+  function buildUsedNumbersForUserInPeriod(userId: string, periodId: string): Set<number> {
     const used = new Set<number>();
+
+    // 1. Intentar desde downloadNumbersByUser en los archivos (modo localStorage / sesión actual)
     for (const f of files) {
       const byUser = f.downloadNumbersByUser?.[userId];
       if (!byUser) continue;
       const n = byUser[periodId];
-      if (typeof n === "number") {
-        used.add(n);
+      if (typeof n === "number") used.add(n);
+    }
+
+    // 2. Complementar desde usedNumbersByPeriod (cargado desde el backend al login)
+    const fromBackend = usedNumbersByPeriod['__all__'];
+    if (fromBackend) fromBackend.forEach((n) => used.add(n));
+
+    // 3. Complementar desde downloadLogs en memoria (funciona en ambos modos)
+    for (const log of downloadLogs) {
+      if (
+        (log as any).usuarioId === userId &&
+        (log as any).liquidacionId === periodId &&
+        typeof (log as any).numeroAsignado === "number"
+      ) {
+        used.add((log as any).numeroAsignado);
       }
     }
+
     return used;
   }
 
@@ -276,16 +316,20 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
         }
       }
 
-      // Actualizamos estructura de contadores para que el admin siga viendo el "último usado"
-      let dc: any = {};
-      dc = db.downloads.getCounters();
-      if (!dc[selectedPeriodId]) dc[selectedPeriodId] = {};
-
-      const currentStored = dc[selectedPeriodId][freshMe.id];
+      // Actualizamos contadores (usamos estado en lugar de call async)
+      const periodMap = { ...(downloadCounters[selectedPeriodId] || {}) };
+      const currentStored = periodMap[freshMe.id];
       if (typeof currentStored !== "number" || currentStored < nextNum) {
-        dc[selectedPeriodId][freshMe.id] = nextNum;
+        periodMap[freshMe.id] = nextNum;
       }
-      db.downloads.saveCounters(dc);
+      setDownloadCounters((prev) => ({ ...prev, [selectedPeriodId]: periodMap }));
+
+      // También actualizamos usedNumbersByPeriod en memoria para esta sesión
+      setUsedNumbersByPeriod((prev) => {
+        const s = new Set(prev['__all__'] || []);
+        s.add(nextNum);
+        return { ...prev, '__all__': s };
+      });
 
       // Formato final: "<numero> <NombreOriginal>.ext"
       const lastDot = originalName.lastIndexOf(".");
@@ -434,8 +478,8 @@ async function downloadSelectedAsZip() {
 
     const { nonTxtStart, nonTxtEnd, txtStart, txtEnd } = subRanges;
 
-    // Leemos contadores via db
-    dc = db.downloads.getCounters();
+    // Usamos el estado de contadores (ya cargado async al login)
+    dc = { ...downloadCounters };
     if (!dc[selectedPeriodId]) dc[selectedPeriodId] = {};
 
     // Números ya usados por este usuario en esta liquidación
@@ -574,9 +618,9 @@ async function downloadSelectedAsZip() {
     added++;
   }
 
-  // Persistimos contadores de Sueldos (si aplica)
-  if (isSueldos) {
-    db.downloads.saveCounters(dc);
+  // Persistimos contadores de Sueldos: actualizar estado (el useEffect guarda en backend)
+  if (isSueldos && dc) {
+    setDownloadCounters(dc);
   }
 
   if (added === 0) {
