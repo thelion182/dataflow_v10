@@ -657,7 +657,13 @@ const sectorSummary = useMemo(() => {
 
 // 2) Acumular archivos
 for (const f of periodFiles) {
-  const secId = f.sectorId || null;
+  // Resolver sectorId desde nombre si falta (archivos que vienen del backend)
+  let secId = f.sectorId || null;
+  if (!secId && (f.sectorName || f.sector)) {
+    const name = (f.sectorName || f.sector || '').toLowerCase().trim();
+    const found = sectors.find((s: any) => (s.name || '').toLowerCase().trim() === name);
+    secId = found?.id || null;
+  }
 
   // --- FIX: resolver siteId desde siteCode si falta ---
   let siteIdResolved = f.siteId || null;

@@ -257,6 +257,16 @@ router.post('/upload', requireRole('rrhh', 'admin', 'superadmin'),
     const result = await pool.query('SELECT * FROM files WHERE id = $1', [id]);
     const uploaded = mapFile(result.rows[0]);
 
+    // Registrar en audit_log
+    await pool.query(
+      `INSERT INTO audit_log (timestamp, usuario_id, usuario_nombre, usuario_rol, modulo, accion, entidad_id, entidad_ref, detalles, resultado)
+       VALUES (NOW(), $1, $2, $3, 'archivos', $4, $5, $6, $7, 'ok')`,
+      [req.session.userId, req.session.displayName, req.session.role,
+       isVersionBump ? 'nueva_version' : 'subida',
+       uploaded.id, uploaded.name,
+       isVersionBump ? `Nueva versión v${newVersion}: ${uploaded.name}` : `Subió: ${uploaded.name}`]
+    );
+
     // Notificar via SSE
     if (isVersionBump) {
       broadcast('file:status', {
@@ -308,6 +318,14 @@ router.get('/:id/download', requireAuth, async (req, res) => {
       `INSERT INTO download_logs (user_id, file_id, file_name, downloaded_at)
        VALUES ($1, $2, $3, NOW())`,
       [req.session.userId, file.id, file.name]
+    );
+
+    // Registrar en audit_log
+    await pool.query(
+      `INSERT INTO audit_log (timestamp, usuario_id, usuario_nombre, usuario_rol, modulo, accion, entidad_id, entidad_ref, detalles, resultado)
+       VALUES (NOW(), $1, $2, $3, 'archivos', 'descarga', $4, $5, $6, 'ok')`,
+      [req.session.userId, req.session.displayName, req.session.role,
+       file.id, file.name, `Descargó: ${file.name}`]
     );
 
     // Marcar archivo como descargado para este usuario
@@ -368,6 +386,51 @@ router.put('/:id/status', requireRole('sueldos', 'admin', 'superadmin'), async (
   } catch (err) {
     console.error('[files] PUT /:id/status:', err);
     res.status(500).json({ error: 'Error al cambiar estado' });
+  }
+});
+
+// ── DELETE /api/files/period/:periodId  (reset liquidación, solo superadmin) ─
+router.delete('/period/:periodId', requireRole('superadmin'), async (req, res) => {
+  const { periodId } = req.params;
+  const client = await pool.connect();
+  try {
+    // Obtener paths físicos para borrar del disco
+    const result = await client.query(
+      'SELECT id, storage_path FROM files WHERE period_id = $1',
+      [periodId]
+    );
+    await client.query('BEGIN');
+    // Borrar observaciones y trazabilidad asociadas
+    const fileIds = result.rows.map(r => r.id);
+    if (fileIds.length > 0) {
+      await client.query(`DELETE FROM observation_threads WHERE file_id = ANY($1::uuid[])`, [fileIds]);
+      await client.query(`DELETE FROM file_history WHERE file_id = ANY($1::uuid[])`, [fileIds]);
+      await client.query(`DELETE FROM downloaded_files WHERE file_id = ANY($1::uuid[])`, [fileIds]);
+      await client.query(`DELETE FROM download_logs WHERE file_id = ANY($1::uuid[])`, [fileIds]);
+    }
+    await client.query('DELETE FROM files WHERE period_id = $1', [periodId]);
+    await client.query('COMMIT');
+    // Borrar archivos físicos del disco
+    for (const row of result.rows) {
+      if (row.storage_path) {
+        fs.unlink(path.join(UPLOAD_DIR, row.storage_path), () => {});
+      }
+    }
+    // Registrar en audit
+    await pool.query(
+      `INSERT INTO audit_log (timestamp, usuario_id, usuario_nombre, usuario_rol, modulo, accion, entidad_id, detalles, resultado)
+       VALUES (NOW(), $1, $2, $3, 'archivos', 'period_reset', $4, $5, 'ok')`,
+      [req.session.userId, req.session.displayName, req.session.role, periodId,
+       `Reset de liquidación: ${result.rows.length} archivos eliminados`]
+    );
+    broadcast('period:reset', { periodId, deletedCount: result.rows.length });
+    res.json({ ok: true, deleted: result.rows.length });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[files] DELETE /period/:periodId:', err);
+    res.status(500).json({ error: 'Error al resetear liquidación' });
+  } finally {
+    client.release();
   }
 });
 

@@ -75,8 +75,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
       const result = db.files.getAll();
       if (result && typeof (result as any).then === 'function') {
         (result as any).then((f: any) => {
-          // Solo actualizar si el servidor devolvió datos (evita blanquear si la sesión expiró → 401 → [])
-          if (Array.isArray(f) && f.length > 0) setFiles(f);
+          if (Array.isArray(f)) setFiles(f);
         }).catch(() => {});
       } else if (Array.isArray(result) && result.length > 0) {
         setFiles(result);
@@ -320,8 +319,24 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
     });
   }
 
-  function hardResetPeriod(periodId: string) {
+  async function hardResetPeriod(periodId: string) {
     const count = files.filter((x: any) => x.periodId === periodId).length;
+    if (USE_API) {
+      try {
+        const res = await fetch(`${API_URL}/files/period/${periodId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          alert(d.error || 'Error al resetear la liquidación en el servidor.');
+          return;
+        }
+      } catch {
+        alert('Error de conexión al resetear la liquidación.');
+        return;
+      }
+    }
     setFiles((prev) => prev.filter((x) => x.periodId !== periodId));
     db.files.appendAudit({ t: new Date().toISOString(), action: "period_reset", byUserId: me?.id || "", byUsername: me?.username || "sistema", details: `Reset de liquidación ${periodId} (${count} archivos eliminados)`, periodId });
     publishEvent({

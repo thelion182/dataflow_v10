@@ -64,6 +64,10 @@ export function useSSE({ meId }: { meId?: string } = {}) {
       refreshFiles();
     });
 
+    es.addEventListener('period:reset', (e: any) => {
+      refreshFiles();
+    });
+
     es.addEventListener('file:observation', (e: any) => {
       const d = JSON.parse(e.data);
       if (d.type === 'nueva_duda') {
