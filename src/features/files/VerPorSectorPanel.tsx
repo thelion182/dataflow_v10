@@ -52,11 +52,13 @@ export function VerPorSectorPanel({ files, sectors, sites, onClose }: Props) {
 
     for (const f of files) {
       if (f.eliminated) continue;
-      const siteCode = f.siteCode || '_sin_sede';
+      // siteCode puede ser código real ("SC") o UUID viejo — normalizamos
+      const rawCode = f.siteCode || '';
+      const siteInfo = sites.find((s: any) => s.code === rawCode) || null;
+      const siteCode = siteInfo ? siteInfo.code : (rawCode || '_sin_sede');
       const sectorName = f.sectorName || f.sector || '_sin_sector';
 
       if (!bySite[siteCode]) {
-        const siteInfo = sites.find(s => s.code === siteCode);
         bySite[siteCode] = {
           siteCode,
           siteName: siteInfo?.name || (siteCode === '_sin_sede' ? 'Sin sede' : siteCode),

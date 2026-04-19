@@ -60,6 +60,7 @@ function mapFile(f) {
     status:         f.status,
     statusOverride: f.status_override,
     sector:         f.sector,
+    sectorName:     f.sector,
     siteCode:       f.site_code,
     uploaderId:     f.uploader_id,
     uploaderName:   f.uploader_name,

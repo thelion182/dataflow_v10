@@ -416,6 +416,10 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
 
       const opts = { ...(siteOpts || {}), ...(sectorOpts || {}) };
 
+      // Resolver siteCode real (ej "SC") y sectorName para mandar al backend
+      const resolvedSiteCode = guessedSite?.code || null;
+      const resolvedSectorName = guessedSector?.name || null;
+
       if (existing && myPerms.actions.bumpVersion) {
         // Sustituye el archivo existente actualizando su versión en la misma fila
         const nextVer = (Number.isFinite(existing.version) ? existing.version : 1) + 1;
@@ -431,8 +435,8 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
             const saved = await uploadBinaryToBackend(file, {
               fileId: existing.id,
               periodId: selectedPeriodId,
-              sector: (opts as any)?.sectorId || existing.sectorId || undefined,
-              siteCode: (opts as any)?.siteId || existing.siteId || undefined,
+              sector: resolvedSectorName || existing.sectorName || existing.sector || undefined,
+              siteCode: resolvedSiteCode || existing.siteCode || undefined,
             });
             if (saved?.storagePath) storagePath = saved.storagePath;
           }
@@ -471,8 +475,8 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
         if (USE_API) {
           backendFile = await uploadBinaryToBackend(file, {
             periodId: selectedPeriodId,
-            sector: (opts as any)?.sectorId || undefined,
-            siteCode: (opts as any)?.siteId || undefined,
+            sector: resolvedSectorName || undefined,
+            siteCode: resolvedSiteCode || undefined,
           });
         }
         createNewFile(file, { ...opts, backendFile });
