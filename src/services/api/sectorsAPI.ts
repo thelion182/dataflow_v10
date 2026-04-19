@@ -11,9 +11,8 @@ export async function getAllSectors(): Promise<any[]> {
 }
 
 export async function saveSectors(sectors: any[]): Promise<void> {
-  if (!sectors || sectors.length === 0) return;
   try {
-    await apiPut('/sectors', sectors);
+    await apiPut('/sectors', sectors || []);
   } catch (err) {
     console.error('[sectorsAPI] saveSectors:', err);
   }
@@ -29,9 +28,8 @@ export async function getAllSites(): Promise<any[]> {
 }
 
 export async function saveSites(sites: any[]): Promise<void> {
-  if (!sites || sites.length === 0) return;
   try {
-    await apiPut('/sectors/sites', sites);
+    await apiPut('/sectors/sites', sites || []);
   } catch (err) {
     console.error('[sectorsAPI] saveSites:', err);
   }

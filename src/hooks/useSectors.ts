@@ -97,46 +97,72 @@ export function detectCombination(
 
 export function useSectors({ rrhhUsers, me }: any = {}) {
 
-  const skipSaveSectors      = useRef(true);
-  const skipSaveSites        = useRef(true);
-  const skipSaveCombinations = useRef(true);
+  // loadedRef: se pone en true cuando la carga inicial del API terminó.
+  // Mientras sea false, los efectos de save no corren (evita sobrescribir con datos vacíos).
+  const loadedSectors      = useRef(false);
+  const loadedSites        = useRef(false);
+  const loadedCombinations = useRef(false);
 
   const [sectors, setSectors] = useState<SectorConfig[]>(() => {
     const r = db.sectors.getAllSectors();
-    if (Array.isArray(r)) { skipSaveSectors.current = false; return r; }
+    if (Array.isArray(r)) { loadedSectors.current = true; return r; }
     return [];
   });
   const [sites, setSites] = useState<SiteConfig[]>(() => {
     const r = db.sectors.getAllSites();
-    if (Array.isArray(r)) { skipSaveSites.current = false; return r; }
+    if (Array.isArray(r)) { loadedSites.current = true; return r; }
     return [];
   });
   const [combinations, setCombinations] = useState<Combination[]>(() => {
     const r = db.combinations.getAll();
-    if (Array.isArray(r)) { skipSaveCombinations.current = false; return r; }
+    if (Array.isArray(r)) { loadedCombinations.current = true; return r; }
     return [];
   });
 
-  // Carga async para modo API
+  // Carga async para modo API — se ejecuta al login (me.id cambia)
   useEffect(() => {
     if (!me?.id) return;
+    // Resetear flags para la nueva sesión
+    loadedSectors.current = false;
+    loadedSites.current = false;
+    loadedCombinations.current = false;
+
     const rs = db.sectors.getAllSectors();
     if (rs && typeof (rs as any).then === 'function') {
-      (rs as any).then((s: any) => { if (Array.isArray(s)) { skipSaveSectors.current = false; setSectors(s); } }).catch(() => {});
+      (rs as any).then((s: any) => {
+        if (Array.isArray(s)) { loadedSectors.current = true; setSectors(s); }
+      }).catch(() => {});
     }
     const ri = db.sectors.getAllSites();
     if (ri && typeof (ri as any).then === 'function') {
-      (ri as any).then((s: any) => { if (Array.isArray(s)) { skipSaveSites.current = false; setSites(s); } }).catch(() => {});
+      (ri as any).then((s: any) => {
+        if (Array.isArray(s)) { loadedSites.current = true; setSites(s); }
+      }).catch(() => {});
     }
     const rc = db.combinations.getAll();
     if (rc && typeof (rc as any).then === 'function') {
-      (rc as any).then((c: any) => { if (Array.isArray(c)) { skipSaveCombinations.current = false; setCombinations(c); } }).catch(() => {});
+      (rc as any).then((c: any) => {
+        if (Array.isArray(c)) { loadedCombinations.current = true; setCombinations(c); }
+      }).catch(() => {});
     }
   }, [me?.id]);
 
-  useEffect(() => { if (!skipSaveSectors.current)      db.sectors.saveSectors(sectors); }, [sectors]);
-  useEffect(() => { if (!skipSaveSites.current)        db.sectors.saveSites(sites); }, [sites]);
-  useEffect(() => { if (!skipSaveCombinations.current) db.combinations.saveAll(combinations); }, [combinations]);
+  // Guardar solo cuando la carga ya terminó (loadedRef = true)
+  // y solo cuando me está logueado (evita guardas en logout)
+  useEffect(() => {
+    if (!loadedSectors.current || !me?.id) return;
+    db.sectors.saveSectors(sectors);
+  }, [sectors]);
+
+  useEffect(() => {
+    if (!loadedSites.current || !me?.id) return;
+    db.sectors.saveSites(sites);
+  }, [sites]);
+
+  useEffect(() => {
+    if (!loadedCombinations.current || !me?.id) return;
+    db.combinations.saveAll(combinations);
+  }, [combinations]);
 
   // ── Sites CRUD ─────────────────────────────────────────────────
 
