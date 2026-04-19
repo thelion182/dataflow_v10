@@ -402,14 +402,37 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
           && x.statusOverride !== 'eliminado' && !x.eliminated
       );
 
-      // ===== Detectar SEDE por nombre =====
+      // ===== Detectar SEDE por código en el nombre =====
       const guessedSite = guessSiteForFileName(file.name || "");
       const siteOpts = guessedSite
         ? { siteId: guessedSite.id, siteName: guessedSite.name }
         : undefined;
 
-      // ===== Detectar SECTOR por nombre =====
-      const guessedSector = guessSectorForFileName(file.name || "");
+      // ===== Detectar SECTOR: primero filtrar por sede, luego buscar nombre en filename =====
+      const lowerFileName = (file.name || "").toLowerCase();
+      const normalize = (s: string) => (s || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // quita tildes para comparar
+      const normalizedFileName = normalize(file.name || "");
+
+      let guessedSector: any = null;
+      if (guessedSite) {
+        // 1) Buscar entre sectores de esa sede por nombre en el archivo
+        const sc = (guessedSite.code || "").toUpperCase();
+        const siteSectors = (sectors || []).filter(
+          (s: any) => s?.active && (s.siteCode || "").toUpperCase() === sc
+        );
+        guessedSector = siteSectors.find((s: any) =>
+          s.name && normalizedFileName.includes(normalize(s.name))
+        ) || null;
+      }
+      if (!guessedSector) {
+        // 2) Fallback: buscar por nombre en todos los sectores activos
+        guessedSector = (sectors || []).find((s: any) =>
+          s?.active && s.name && normalizedFileName.includes(normalize(s.name))
+        ) || guessSectorForFileName(file.name || "") || null;
+      }
+
       const sectorOpts = guessedSector
         ? { sectorId: guessedSector.id, sectorName: guessedSector.name }
         : undefined;
