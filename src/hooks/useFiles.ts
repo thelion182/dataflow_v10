@@ -22,16 +22,18 @@ const API_URL = _rawApiUrl.replace(/^(https?:\/\/)localhost(:\d+)?/, `$1${window
  */
 async function uploadBinaryToBackend(
   file: File,
-  opts: { fileId?: string; periodId?: string; sector?: string; siteCode?: string; subcategory?: string }
+  opts: { fileId?: string; periodId?: string; sector?: string; siteCode?: string; subcategory?: string; combinationId?: string; noNews?: boolean }
 ): Promise<any | null> {
   try {
     const form = new FormData();
     form.append('file', file);
-    if (opts.fileId)      form.append('fileId',      opts.fileId);
-    if (opts.periodId)    form.append('periodId',    opts.periodId);
-    if (opts.sector)      form.append('sector',      opts.sector);
-    if (opts.siteCode)    form.append('siteCode',    opts.siteCode);
-    if (opts.subcategory) form.append('subcategory', opts.subcategory);
+    if (opts.fileId)       form.append('fileId',       opts.fileId);
+    if (opts.periodId)     form.append('periodId',     opts.periodId);
+    if (opts.sector)       form.append('sector',       opts.sector);
+    if (opts.siteCode)     form.append('siteCode',     opts.siteCode);
+    if (opts.subcategory)  form.append('subcategory',  opts.subcategory);
+    if (opts.combinationId) form.append('combinationId', opts.combinationId);
+    if (opts.noNews)       form.append('noNews',       String(!!opts.noNews));
     const res = await fetch(`${API_URL}/files/upload`, {
       method: 'POST',
       credentials: 'include',
@@ -443,6 +445,8 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
               periodId: selectedPeriodId,
               sector: resolvedSectorName || existing.sectorName || existing.sector || undefined,
               siteCode: resolvedSiteCode || existing.siteCode || undefined,
+              subcategory: resolvedSubcategory || existing.subcategory || undefined,
+              combinationId: resolvedComboId || existing.combinationId || undefined,
             });
             if (saved?.storagePath) storagePath = saved.storagePath;
           }
@@ -480,10 +484,11 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
         let backendFile: any = null;
         if (USE_API) {
           backendFile = await uploadBinaryToBackend(file, {
-            periodId:    selectedPeriodId,
-            sector:      resolvedSectorName  || undefined,
-            siteCode:    resolvedSiteCode    || undefined,
-            subcategory: resolvedSubcategory || undefined,
+            periodId:      selectedPeriodId,
+            sector:        resolvedSectorName  || undefined,
+            siteCode:      resolvedSiteCode    || undefined,
+            subcategory:   resolvedSubcategory || undefined,
+            combinationId: resolvedComboId     || undefined,
           });
         }
         createNewFile(file, { ...opts, backendFile });

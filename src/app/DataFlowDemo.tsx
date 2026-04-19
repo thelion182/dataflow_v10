@@ -602,19 +602,32 @@ const sectorSummary = useMemo(() => {
     });
   }
 
+  // Índice de fallback por siteCode+sectorName+subcategory (para archivos sin combinationId)
+  const fallbackMap = new Map<string, any>();
+  for (const entry of map.values()) {
+    const key = `${(entry.siteCode||'').toUpperCase()}|${(entry.sectorName||'').toLowerCase()}|${(entry.subcategory||'').toLowerCase()}`;
+    fallbackMap.set(key, entry);
+  }
+
   // 2) Acumular archivos a su combinación
   for (const f of periodFiles) {
     const cid = f.combinationId || null;
-    const entry = cid ? map.get(cid) : null;
+    let entry = cid ? map.get(cid) : null;
+
+    // Fallback: si no tiene combinationId, buscar por siteCode+sectorName+subcategory
+    if (!entry && (f.siteCode || f.sectorName)) {
+      const key = `${(f.siteCode||'').toUpperCase()}|${(f.sectorName||'').toLowerCase()}|${(f.subcategory||'').toLowerCase()}`;
+      entry = fallbackMap.get(key) || null;
+    }
 
     if (entry) {
       entry.files.push(f);
       if (f.noNews) entry.noNewsCount += 1;
       else entry.receivedReal += 1;
-      const at = f.at || null;
+      const at = f.at || f.createdAt || null;
       if (at && (!entry.lastUpdatedAt || at > entry.lastUpdatedAt)) entry.lastUpdatedAt = at;
     }
-    // archivos sin combinationId van a "sin clasificar" (no cuentan en progreso)
+    // archivos sin ningún match van a "sin clasificar" (no cuentan en progreso)
   }
 
   // 3) Calcular completed

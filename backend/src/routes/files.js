@@ -62,6 +62,9 @@ function mapFile(f) {
     sector:         f.sector,
     sectorName:     f.sector,
     siteCode:       f.site_code,
+    combinationId:  f.combination_id || null,
+    subcategory:    f.subcategory    || null,
+    noNews:         !!f.no_news,
     uploaderId:     f.uploader_id,
     uploaderName:   f.uploader_name,
     version:        f.version,
@@ -135,16 +138,20 @@ router.put('/', requireAuth, async (req, res) => {
       }
       await client.query(
         `INSERT INTO files (id, period_id, name, size, mime_type, status, status_override,
-                            sector, site_code, uploader_id, uploader_name, version,
+                            sector, site_code, combination_id, subcategory, no_news,
+                            uploader_id, uploader_name, version,
                             parent_id, storage_path, eliminated, eliminated_by, eliminated_at,
                             observations, history)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
          ON CONFLICT (id) DO UPDATE SET
            name           = EXCLUDED.name,
            version        = EXCLUDED.version,
            size           = EXCLUDED.size,
            status         = EXCLUDED.status,
            status_override= EXCLUDED.status_override,
+           combination_id = EXCLUDED.combination_id,
+           subcategory    = EXCLUDED.subcategory,
+           no_news        = EXCLUDED.no_news,
            eliminated     = EXCLUDED.eliminated,
            eliminated_by  = EXCLUDED.eliminated_by,
            eliminated_at  = EXCLUDED.eliminated_at,
@@ -152,7 +159,9 @@ router.put('/', requireAuth, async (req, res) => {
            history        = EXCLUDED.history,
            updated_at     = NOW()`,
         [f.id, f.periodId, f.name, f.size, f.mimeType, f.status, f.statusOverride,
-         f.sector, f.siteCode, f.uploaderId || req.session.userId,
+         f.sector || f.sectorName || null, f.siteCode || null,
+         f.combinationId || null, f.subcategory || null, !!f.noNews,
+         f.uploaderId || req.session.userId,
          f.uploaderName || req.session.displayName || req.session.userId,
          f.version || 1, f.parentId || null, f.storagePath || null,
          !!f.eliminated, f.eliminatedBy || null, f.eliminatedAt || null,
@@ -216,7 +225,7 @@ router.post('/upload', requireRole('rrhh', 'admin', 'superadmin'),
   upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
 
-  const { periodId, sector, siteCode, fileId } = req.body;
+  const { periodId, sector, siteCode, fileId, combinationId, subcategory, noNews } = req.body;
   const { v4: uuidv4 } = require('uuid');
   const id = fileId || uuidv4();
   const relativePath = path.relative(UPLOAD_DIR, req.file.path).replace(/\\/g, '/');
@@ -229,19 +238,23 @@ router.post('/upload', requireRole('rrhh', 'admin', 'superadmin'),
 
     await pool.query(
       `INSERT INTO files (id, period_id, name, size, mime_type, status,
-                          sector, site_code, uploader_id, uploader_name,
-                          version, storage_path)
-       VALUES ($1,$2,$3,$4,$5,'cargado',$6,$7,$8,$9,$10,$11)
+                          sector, site_code, combination_id, subcategory, no_news,
+                          uploader_id, uploader_name, version, storage_path)
+       VALUES ($1,$2,$3,$4,$5,'cargado',$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT (id) DO UPDATE SET
-         name         = EXCLUDED.name,
-         size         = EXCLUDED.size,
-         mime_type    = EXCLUDED.mime_type,
-         status       = 'actualizado',
-         version      = EXCLUDED.version,
-         storage_path = EXCLUDED.storage_path,
-         updated_at   = NOW()`,
+         name           = EXCLUDED.name,
+         size           = EXCLUDED.size,
+         mime_type      = EXCLUDED.mime_type,
+         status         = 'actualizado',
+         combination_id = EXCLUDED.combination_id,
+         subcategory    = EXCLUDED.subcategory,
+         no_news        = EXCLUDED.no_news,
+         version        = EXCLUDED.version,
+         storage_path   = EXCLUDED.storage_path,
+         updated_at     = NOW()`,
       [id, periodId, Buffer.from(req.file.originalname, 'latin1').toString('utf8'), req.file.size, req.file.mimetype,
        sector || null, siteCode || null,
+       combinationId || null, subcategory || null, noNews === 'true' || noNews === true,
        req.session.userId, req.session.displayName || req.session.userId,
        newVersion, relativePath]
     );
