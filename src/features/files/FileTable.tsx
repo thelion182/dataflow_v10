@@ -166,7 +166,7 @@ export function FileTable({
                     <td className="px-4 py-3">
                       <span
                         className={cls(
-                          "px-2 py-0.5 rounded-lg text-xs",
+                          "px-2 py-0.5 rounded-lg text-xs whitespace-nowrap",
                           statusBadgeClasses(effectiveStatus(f))
                         )}
                       >

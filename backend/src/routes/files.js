@@ -239,14 +239,15 @@ router.post('/upload', requireRole('rrhh', 'admin', 'superadmin'),
          version      = EXCLUDED.version,
          storage_path = EXCLUDED.storage_path,
          updated_at   = NOW()`,
-      [id, periodId, req.file.originalname, req.file.size, req.file.mimetype,
+      [id, periodId, Buffer.from(req.file.originalname, 'latin1').toString('utf8'), req.file.size, req.file.mimetype,
        sector || null, siteCode || null,
        req.session.userId, req.session.displayName || req.session.userId,
        newVersion, relativePath]
     );
 
     // Registrar en audit log
-    const action = isVersionBump ? `Nueva versión v${newVersion}: ${req.file.originalname}` : `Archivo subido: ${req.file.originalname}`;
+    const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const action = isVersionBump ? `Nueva versión v${newVersion}: ${originalName}` : `Archivo subido: ${originalName}`;
     await pool.query(
       `INSERT INTO file_history (file_id, action, by_user_id, by_username, details)
        VALUES ($1, 'subida', $2, $3, $4)`,
@@ -313,6 +314,12 @@ router.get('/:id/download', requireAuth, async (req, res) => {
     await pool.query(
       `INSERT INTO downloaded_files (user_id, file_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
       [req.session.userId, file.id]
+    );
+
+    // Actualizar status del archivo a "descargado" en la DB
+    await pool.query(
+      `UPDATE files SET status = 'descargado', updated_at = NOW() WHERE id = $1`,
+      [file.id]
     );
 
     // Notificar via SSE a todos los usuarios

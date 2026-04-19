@@ -123,7 +123,7 @@ export function NotificationBell() {
         onClick={() => { setOpen(v => !v); if (!open && unread > 0) markAllRead(); }}
         className={cls(
           'relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
-          open ? 'bg-neutral-700 text-neutral-100' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+          open ? 'bg-neutral-700 text-white' : 'text-neutral-200 hover:text-white hover:bg-neutral-800'
         )}
         title="Notificaciones"
       >

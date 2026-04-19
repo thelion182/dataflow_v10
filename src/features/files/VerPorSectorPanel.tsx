@@ -53,7 +53,7 @@ export function VerPorSectorPanel({ files, sectors, sites, onClose }: Props) {
     for (const f of files) {
       if (f.eliminated) continue;
       const siteCode = f.siteCode || '_sin_sede';
-      const sectorName = f.sector || '_sin_sector';
+      const sectorName = f.sectorName || f.sector || '_sin_sector';
 
       if (!bySite[siteCode]) {
         const siteInfo = sites.find(s => s.code === siteCode);

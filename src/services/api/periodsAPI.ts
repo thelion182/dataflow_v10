@@ -30,7 +30,7 @@ export async function getAll(): Promise<any[]> {
 }
 
 export async function saveAll(periods: any[]): Promise<void> {
-  if (!['admin', 'superadmin'].includes(getCurrentRole())) return;
+  if (!periods || periods.length === 0) return;
   try {
     await apiPut('/periods', periods);
   } catch (err) {
