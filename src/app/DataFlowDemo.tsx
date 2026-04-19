@@ -247,6 +247,10 @@ useEffect(() => {
           const idx = users.findIndex((u: any) => u.id === apiUser.id);
           if (idx >= 0) {
             users[idx].mustChangePassword = !!apiUser.mustChangePassword;
+            // Sincronizar permisos desde el servidor (actualizados por admin)
+            if (apiUser.permissions) {
+              users[idx].permissions = apiUser.permissions;
+            }
             saveUsers(users);
           }
           setSessionState(getSession());
@@ -1134,22 +1138,24 @@ const [helpOpen, setHelpOpen] = useState(false);
   const uploaderOptions = useMemo(() => {
     const map = new Map<string, string>();
 
+    // Primero: todos los usuarios RRHH activos del sistema
+    for (const u of (usersSnap || [])) {
+      if (u?.role === "rrhh" && u?.active !== false && u?.id) {
+        map.set(u.id, u.displayName || u.username || u.id);
+      }
+    }
+
+    // Luego: usuarios que subieron archivos (aunque no sean RRHH o no estén en usersSnap)
     for (const f of files) {
       const id = f.byUserId || "";
-      if (!id) continue; // archivos "sistema" sin usuario real
-
+      if (!id) continue;
       if (!map.has(id)) {
-        const label =
-          f.byUsername ||
-          f.byUserId ||
-          "sistema";
-
-        map.set(id, label);
+        map.set(id, f.byUsername || f.byUserId || "sistema");
       }
     }
 
     return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
-  }, [files]);
+  }, [files, usersSnap]);
 
 
     // === Resumen de la liquidación seleccionada (archivos / dudas / arreglos) ===
