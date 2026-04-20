@@ -1162,7 +1162,7 @@ const [helpOpen, setHelpOpen] = useState(false);
     // Primero: todos los usuarios RRHH activos del sistema
     for (const u of (usersSnap || [])) {
       if (u?.role === "rrhh" && u?.active !== false && u?.id) {
-        map.set(u.id, u.displayName || u.username || u.id);
+        map.set(u.id, u.username || u.id);
       }
     }
 
