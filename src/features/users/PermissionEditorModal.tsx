@@ -37,6 +37,7 @@ export function PermissionEditorModal({ userId, onClose }: { userId: string; onC
   const user = getUserById(userId);
   const basePerms = getUserEffectivePermissions(user);
   const [actions, setActions] = useState<any>(basePerms.actions || {});
+  const [saving, setSaving] = useState(false);
 
   const isFixed = user?.role === "admin" || user?.role === "superadmin";
 
@@ -44,9 +45,11 @@ export function PermissionEditorModal({ userId, onClose }: { userId: string; onC
     setActions((prev: any) => ({ ...prev, [key]: checked }));
   }
 
-  function save() {
+  async function save() {
+    setSaving(true);
     const perms = { allowedStatuses: basePerms.allowedStatuses, actions: { ...actions } };
-    const res = adminSetPermissions(userId, perms);
+    const res = await adminSetPermissions(userId, perms);
+    setSaving(false);
     if (!(res as any).ok) { alert((res as any).error || "No se pudieron guardar los permisos."); return; }
     onClose();
   }
@@ -96,7 +99,9 @@ export function PermissionEditorModal({ userId, onClose }: { userId: string; onC
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-sm">Cancelar</button>
           {!isFixed && (
-            <button onClick={save} className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-sm">Guardar</button>
+            <button onClick={save} disabled={saving} className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-sm disabled:opacity-50">
+              {saving ? "Guardando…" : "Guardar"}
+            </button>
           )}
         </div>
       </div>

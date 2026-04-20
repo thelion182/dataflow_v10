@@ -237,7 +237,7 @@ useEffect(() => {
     } catch (err) {
       console.error("No se pudo inicializar el admin demo:", err);
     }
-    // En modo API: sincronizar mustChangePassword desde el backend al recargar
+    // En modo API: sincronizar datos del usuario desde el backend al recargar
     if (import.meta.env.VITE_USE_API === 'true') {
       try {
         const res = await fetch(`${_apiBase}/auth/me`, { credentials: 'include' });
@@ -247,10 +247,33 @@ useEffect(() => {
           const idx = users.findIndex((u: any) => u.id === apiUser.id);
           if (idx >= 0) {
             users[idx].mustChangePassword = !!apiUser.mustChangePassword;
-            // Sincronizar permisos desde el servidor (actualizados por admin)
-            if (apiUser.permissions) {
-              users[idx].permissions = apiUser.permissions;
-            }
+            // Siempre sincronizar permisos desde el servidor (null = usar defaults de rol)
+            users[idx].permissions = apiUser.permissions ?? null;
+            users[idx].rangeStart = apiUser.rangeStart ?? users[idx].rangeStart;
+            users[idx].rangeEnd = apiUser.rangeEnd ?? users[idx].rangeEnd;
+            users[idx].rangeTxtStart = apiUser.rangeTxtStart ?? users[idx].rangeTxtStart;
+            users[idx].rangeTxtEnd = apiUser.rangeTxtEnd ?? users[idx].rangeTxtEnd;
+            saveUsers(users);
+          } else if (apiUser.id) {
+            // Usuario no está en localStorage (primer acceso en este dispositivo tras login existente)
+            const newU = {
+              id: apiUser.id,
+              username: apiUser.username,
+              displayName: apiUser.displayName || apiUser.username,
+              role: apiUser.role,
+              active: true,
+              mustChangePassword: !!apiUser.mustChangePassword,
+              permissions: apiUser.permissions ?? null,
+              rangeStart: apiUser.rangeStart ?? undefined,
+              rangeEnd: apiUser.rangeEnd ?? undefined,
+              rangeTxtStart: apiUser.rangeTxtStart ?? undefined,
+              rangeTxtEnd: apiUser.rangeTxtEnd ?? undefined,
+              passwordHash: '', loginAttempts: 0, lockedUntil: '',
+              createdAt: '', lastLoginAt: '',
+              title: apiUser.role === 'rrhh' ? 'RRHH' : apiUser.role === 'sueldos' ? 'Sueldos' : apiUser.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
+              avatarDataUrl: '',
+            };
+            users.push(newU);
             saveUsers(users);
           }
           setSessionState(getSession());

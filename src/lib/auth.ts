@@ -490,7 +490,7 @@ export function adminSetActive(userId: string, active: boolean) {
   return { ok: true };
 }
 
-export function adminSetPermissions(userId: string, permissions: any) {
+export async function adminSetPermissions(userId: string, permissions: any) {
   const users = loadUsers();
   const idx = users.findIndex((u) => u.id === userId);
   if (idx < 0) return { ok: false, error: "Usuario no encontrado." };
@@ -499,13 +499,21 @@ export function adminSetPermissions(userId: string, permissions: any) {
   saveUsers(users);
 
   if (USE_API) {
-    const { passwordHash: _omit, ...safe } = users[idx] as any;
-    fetch(`${API_URL}/users/${userId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(safe),
-    }).catch(() => {});
+    try {
+      const { passwordHash: _omit, ...safe } = users[idx] as any;
+      const res = await fetch(`${API_URL}/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(safe),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        return { ok: false, error: d.error || 'Error al guardar permisos en el servidor.' };
+      }
+    } catch {
+      return { ok: false, error: 'Error de conexión al guardar permisos.' };
+    }
   }
 
   return { ok: true };
