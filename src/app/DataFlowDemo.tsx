@@ -263,8 +263,8 @@ useEffect(() => {
             loginAttempts: 0, lockedUntil: '',
             createdAt: idx >= 0 ? (users[idx].createdAt || '') : '',
             lastLoginAt: idx >= 0 ? (users[idx].lastLoginAt || '') : '',
-            title: apiUser.role === 'rrhh' ? 'RRHH' : apiUser.role === 'sueldos' ? 'Sueldos' : apiUser.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
-            avatarDataUrl: idx >= 0 ? (users[idx].avatarDataUrl || '') : '',
+            title: apiUser.title ?? (idx >= 0 ? (users[idx].title || '') : ''),
+            avatarDataUrl: apiUser.avatarDataUrl ?? (idx >= 0 ? (users[idx].avatarDataUrl || '') : ''),
           };
           if (idx >= 0) {
             users[idx] = { ...users[idx], ...freshUser };

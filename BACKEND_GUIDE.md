@@ -199,18 +199,27 @@ El frontend divide el rango: los últimos ~100 números se reservan para `.txt`,
 | `GET`  | `/auth/me` | autenticado | Usuario de la sesión actual |
 | `GET`  | `/auth/session` | autenticado | `{ userId }` |
 | `PUT`  | `/auth/session` | autenticado | Guardar/limpiar sesión |
+| `POST` | `/auth/change-password` | autenticado | Cambiar contraseña propia |
+| `PUT`  | `/auth/profile` | autenticado | Actualizar perfil propio (displayName, title, avatarDataUrl) |
 
-**POST /auth/login — response incluye rangos:**
+**POST /auth/login — response incluye rangos, perfil y permisos:**
 ```json
 {
   "id": "uuid", "username": "adelgado", "displayName": "Ana Delgado",
   "role": "sueldos", "mustChangePassword": false,
   "rangeStart": 600, "rangeEnd": 799,
-  "rangeTxtStart": null, "rangeTxtEnd": null
+  "rangeTxtStart": null, "rangeTxtEnd": null,
+  "permissions": null,
+  "title": "Analista de Sueldos",
+  "avatarDataUrl": "data:image/png;base64,..."
 }
 ```
 
 **Lockout:** 5 intentos fallidos bloquean la cuenta por 5 minutos. Se desbloquea automáticamente o con SQL directo.
+
+**PUT /auth/profile** — cualquier usuario autenticado puede actualizar su propio nombre visible, cargo y foto. No requiere rol admin. El frontend usa este endpoint desde `ProfileModal` para que los cambios persistan en la BD.
+
+**POST /auth/change-password** — si el usuario tiene `must_change_password = true`, no exige la contraseña actual. Tras el cambio, `must_change_password` se resetea a `false`.
 
 ---
 
@@ -225,7 +234,11 @@ El frontend divide el rango: los últimos ~100 números se reservan para `.txt`,
 
 **PUT /users/:id — si viene `plainPassword`, el backend hashea con bcrypt automáticamente.**
 
-**IMPORTANTE:** Todas las mutaciones de usuario desde el frontend (crear, cambiar rol, asignar rango, resetear contraseña) llaman a este endpoint además de actualizar localStorage. Garantiza que todos los dispositivos vean los datos frescos.
+**Campos de perfil:** `title` (VARCHAR 200) y `avatar_data_url` (TEXT) son parte de la respuesta de todos los endpoints de usuarios. Guardar estos campos requiere `PUT /auth/profile` (cualquier usuario) o `PUT /users/:id` (admin/superadmin).
+
+**Permisos por usuario:** el campo `permissions` es JSONB. Si es `null`, el frontend usa los defaults del rol (`ROLE_DEFAULT_PERMISSIONS`). Si no es `null`, se fusionan con los defaults vía `getUserEffectivePermissions(user)`.
+
+**IMPORTANTE:** Todas las mutaciones de usuario desde el frontend (crear, cambiar rol, asignar rango, resetear contraseña, editar permisos) llaman a este endpoint además de actualizar localStorage. Garantiza que todos los dispositivos vean los datos frescos.
 
 ---
 
@@ -548,7 +561,33 @@ cookie: {
 
 ---
 
-## 11. Migración de datos existentes (localStorage → base de datos)
+## 11. Migraciones SQL incrementales
+
+El esquema base está en `backend/sql/01_schema.sql`. Tras el deploy inicial, se aplican migraciones numeradas:
+
+| Archivo | Qué agrega |
+|---------|-----------|
+| `03_download_logs.sql` | Tabla `download_logs` completa con campos de auditoría |
+| `04_audit_log.sql` | Tabla `audit_log` para login/logout/reclamos |
+| `05_user_selected_period.sql` | Tabla `user_selected_period` (preferencia UI por usuario) |
+| `06_users_permissions.sql` | `ALTER TABLE users ADD COLUMN permissions JSONB` |
+| `07_users_profile.sql` | `ALTER TABLE users ADD COLUMN title VARCHAR(200)` y `avatar_data_url TEXT` |
+
+**Cómo aplicar una migración:**
+```bash
+docker compose exec db psql -U dataflow -d dataflow -f /sql/06_users_permissions.sql
+docker compose exec db psql -U dataflow -d dataflow -f /sql/07_users_profile.sql
+```
+
+Si la BD ya tiene datos y hay que verificar que las columnas existen:
+```bash
+docker compose exec db psql -U dataflow -d dataflow \
+  -c "\d users" | grep -E "title|avatar|permissions"
+```
+
+---
+
+## 12. Migración de datos existentes (localStorage → base de datos)
 
 Si hay datos cargados en localStorage del navegador que se quieren migrar:
 

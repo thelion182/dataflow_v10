@@ -55,6 +55,38 @@ export function upsertUser(user: AppUser) {
   }
 }
 
+/**
+ * Actualiza el perfil del usuario logueado (displayName, title, avatarDataUrl).
+ * Usa PUT /api/auth/profile que permite cualquier rol autenticado.
+ */
+export async function updateMyProfile(userId: string, profile: { displayName?: string; title?: string; avatarDataUrl?: string }) {
+  const list = loadUsers();
+  const idx = list.findIndex((u) => u.id === userId);
+  if (idx >= 0) {
+    if (profile.displayName !== undefined) list[idx].displayName = profile.displayName;
+    if (profile.title !== undefined) (list[idx] as any).title = profile.title;
+    if (profile.avatarDataUrl !== undefined) (list[idx] as any).avatarDataUrl = profile.avatarDataUrl;
+    saveUsers(list);
+  }
+  if (USE_API) {
+    try {
+      const res = await fetch(`${API_URL}/auth/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(profile),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        return { ok: false, error: d.error || 'Error al guardar perfil.' };
+      }
+    } catch {
+      return { ok: false, error: 'Error de conexión al guardar perfil.' };
+    }
+  }
+  return { ok: true };
+}
+
 // ======================================================
 // SESSION
 // ======================================================

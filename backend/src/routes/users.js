@@ -31,6 +31,8 @@ function mapUser(u) {
     lastLoginAt:         u.last_login_at,
     createdAt:           u.created_at,
     permissions:         u.permissions || null,
+    title:               u.title || null,
+    avatarDataUrl:       u.avatar_data_url || null,
   };
 }
 
@@ -40,7 +42,8 @@ router.get('/', requireRole('admin', 'superadmin'), async (req, res) => {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, must_change_password,
               range_start, range_end, range_txt_start, range_txt_end,
-              active, login_attempts, locked_until, last_login_at, created_at, permissions
+              active, login_attempts, locked_until, last_login_at, created_at,
+              permissions, title, avatar_data_url
        FROM users ORDER BY display_name`
     );
     res.json(result.rows.map(mapUser));
@@ -113,7 +116,8 @@ router.get('/:id', requireAuth, async (req, res) => {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, must_change_password,
               range_start, range_end, range_txt_start, range_txt_end,
-              active, login_attempts, locked_until, last_login_at, created_at, permissions
+              active, login_attempts, locked_until, last_login_at, created_at,
+              permissions, title, avatar_data_url
        FROM users WHERE id = $1`,
       [req.params.id]
     );
@@ -139,8 +143,8 @@ router.put('/:id', requireRole('admin', 'superadmin'), async (req, res) => {
     await pool.query(
       `INSERT INTO users (id, username, display_name, email, role, password_hash,
                           must_change_password, range_start, range_end,
-                          range_txt_start, range_txt_end, active, permissions)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                          range_txt_start, range_txt_end, active, permissions, title, avatar_data_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        ON CONFLICT (id) DO UPDATE SET
          username             = EXCLUDED.username,
          display_name         = EXCLUDED.display_name,
@@ -153,11 +157,14 @@ router.put('/:id', requireRole('admin', 'superadmin'), async (req, res) => {
          range_txt_start      = EXCLUDED.range_txt_start,
          range_txt_end        = EXCLUDED.range_txt_end,
          active               = EXCLUDED.active,
-         permissions          = COALESCE(EXCLUDED.permissions, users.permissions)`,
+         permissions          = COALESCE(EXCLUDED.permissions, users.permissions),
+         title                = COALESCE(EXCLUDED.title, users.title),
+         avatar_data_url      = COALESCE(EXCLUDED.avatar_data_url, users.avatar_data_url)`,
       [req.params.id, u.username, u.displayName, u.email, u.role, hash,
        !!u.mustChangePassword, u.rangeStart || null, u.rangeEnd || null,
        u.rangeTxtStart || null, u.rangeTxtEnd || null, u.active !== false,
-       u.permissions ? JSON.stringify(u.permissions) : null]
+       u.permissions ? JSON.stringify(u.permissions) : null,
+       u.title || null, u.avatarDataUrl || null]
     );
     res.json({ ok: true });
   } catch (err) {

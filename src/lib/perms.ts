@@ -14,7 +14,7 @@ export const ROLE_DEFAULT_PERMISSIONS = {
       gestionarReclamos: false,
       createPeriod: false,
       manageUsers: false,
-      exportCSV: false,
+      exportCSV: true,
       exportDoubts: false,
       hardDelete: false,
       resetPeriod: false,

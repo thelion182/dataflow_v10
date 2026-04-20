@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import Avatar from "../../components/Avatar";
-import { changePassword } from "../../lib/auth";
+import { changePassword, updateMyProfile } from "../../lib/auth";
 import { ROLES } from "../../types";
 
 export function ProfileModal({
@@ -65,8 +65,17 @@ export function ProfileModal({
     }
   }
 
-  function save() {
+  async function save() {
     const updated = { ...me, displayName: displayName.trim() || me.username, title: title.trim(), avatarDataUrl: avatar || "" };
+    try {
+      await updateMyProfile(me.id, {
+        displayName: updated.displayName,
+        title: updated.title,
+        avatarDataUrl: updated.avatarDataUrl,
+      });
+    } catch (e) {
+      console.error('[profile] save:', e);
+    }
     onSaved(updated);
   }
 

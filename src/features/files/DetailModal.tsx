@@ -18,6 +18,9 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                   {prettyBytes(selectedFile.size)} • {typeBadge(selectedFile.type)} • v
                   {selectedFile.version} •{" "}
                   {periodNameById[selectedFile.periodId] || "—"}
+                  {(selectedFile.byUsername || selectedFile.uploaderName) && (
+                    <> • Subido por {selectedFile.byUsername || selectedFile.uploaderName}</>
+                  )}
                 </p>
               </div>
               <button

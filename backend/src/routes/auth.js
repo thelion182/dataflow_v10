@@ -27,7 +27,8 @@ router.post('/login', async (req, res) => {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, password_hash,
               must_change_password, active, login_attempts, locked_until,
-              range_start, range_end, range_txt_start, range_txt_end, permissions
+              range_start, range_end, range_txt_start, range_txt_end,
+              permissions, title, avatar_data_url
        FROM users WHERE LOWER(username) = LOWER($1)`,
       [username]
     );
@@ -81,6 +82,8 @@ router.post('/login', async (req, res) => {
       rangeTxtStart:     user.range_txt_start,
       rangeTxtEnd:       user.range_txt_end,
       permissions:       user.permissions || null,
+      title:             user.title || null,
+      avatarDataUrl:     user.avatar_data_url || null,
     });
   } catch (err) {
     console.error('[auth] login:', err);
@@ -99,7 +102,8 @@ router.get('/me', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, username, display_name, email, role, must_change_password,
-              range_start, range_end, range_txt_start, range_txt_end, permissions
+              range_start, range_end, range_txt_start, range_txt_end,
+              permissions, title, avatar_data_url
        FROM users WHERE id = $1`,
       [req.session.userId]
     );
@@ -117,6 +121,8 @@ router.get('/me', async (req, res) => {
       rangeTxtStart:     user.range_txt_start,
       rangeTxtEnd:       user.range_txt_end,
       permissions:       user.permissions || null,
+      title:             user.title || null,
+      avatarDataUrl:     user.avatar_data_url || null,
     });
   } catch (err) {
     console.error('[auth] me:', err);
@@ -160,6 +166,22 @@ router.post('/change-password', async (req, res) => {
   } catch (err) {
     console.error('[auth] change-password:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ── PUT /api/auth/profile  (cualquier usuario actualiza su propio perfil) ────
+router.put('/profile', async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: 'No autenticado' });
+  const { displayName, title, avatarDataUrl } = req.body;
+  try {
+    await pool.query(
+      `UPDATE users SET display_name = $1, title = $2, avatar_data_url = $3 WHERE id = $4`,
+      [displayName || null, title || null, avatarDataUrl || null, req.session.userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth] profile:', err);
+    res.status(500).json({ error: 'Error al guardar perfil' });
   }
 });
 
