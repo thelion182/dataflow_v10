@@ -377,8 +377,10 @@ function exportRespondedCSV() {
         const hora  = when ? when.toLocaleTimeString() : "";
 
         // --- Filtro por FECHA (si se cargó) ---
-        if (dateFrom && (!when || when < dateFrom)) continue;
-        if (dateTo   && (!when || when > dateTo))   continue;
+        // Solo filtra registros que SÍ tienen fecha y están fuera del rango.
+        // Registros sin fecha siempre pasan (no se descartan por falta de fecha).
+        if (dateFrom && when && when < dateFrom) continue;
+        if (dateTo   && when && when > dateTo)   continue;
 
         // ¿Tiene respuesta de Sueldos (texto en answerText)?
         const hasSueldosAnswer =

@@ -1694,15 +1694,20 @@ return (
   </div>
 
   {/* Badge de modo activo */}
-  {modoActivo === 'reclamos' && (
-    <div
-      className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold"
-      style={{ background: '#0f2035', color: '#93c5fd', border: '1px solid #3b82f6', letterSpacing: '0.06em' }}
-    >
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#60a5fa', display: 'inline-block', boxShadow: '0 0 6px #60a5fa99' }} />
-      RECLAMOS
-    </div>
-  )}
+  <div
+    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+    style={modoActivo === 'reclamos'
+      ? { background: '#0a1525', color: '#7db4f0', border: '1px solid #3b82f640', fontSize: 11 }
+      : { background: '#1a1a1a', color: '#737373', border: '1px solid #2a2a2a', fontSize: 11 }
+    }
+  >
+    <span style={{
+      width: 6, height: 6, borderRadius: '50%', display: 'inline-block',
+      background: modoActivo === 'reclamos' ? '#60a5fa' : '#525252',
+      boxShadow: modoActivo === 'reclamos' ? '0 0 5px #60a5fa80' : 'none',
+    }} />
+    {modoActivo === 'reclamos' ? 'Modo Reclamo' : 'Modo Información'}
+  </div>
 
   <div className="flex flex-wrap items-center gap-2 ml-auto">
   <button
@@ -1999,16 +2004,6 @@ return (
                   >
                     📝 Reporte dudas respondidas (CSV)
                   </button>
-                  <button
-  onClick={() => {
-    setMenuOpen(null);
-    setProcessRespOpen(true);
-  }}
-  className={MENU_ITEM}
-  title="Marcar como procesadas (batch) las dudas respondidas según filtros"
->
-  ✅ Procesar dudas respondidas (batch)
-</button>  
                 </div>
               )}
             </div>
