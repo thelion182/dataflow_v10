@@ -245,37 +245,35 @@ useEffect(() => {
           const apiUser = await res.json();
           const users = loadUsers();
           const idx = users.findIndex((u: any) => u.id === apiUser.id);
+          // Construir objeto de usuario fresco desde el servidor
+          const freshUser = {
+            id: apiUser.id,
+            username: apiUser.username,
+            displayName: apiUser.displayName || apiUser.username,
+            role: apiUser.role,
+            active: true,
+            mustChangePassword: !!apiUser.mustChangePassword,
+            // Permissions siempre desde el servidor — null = usar defaults de rol en getUserEffectivePermissions
+            permissions: apiUser.permissions ?? null,
+            rangeStart: apiUser.rangeStart ?? undefined,
+            rangeEnd: apiUser.rangeEnd ?? undefined,
+            rangeTxtStart: apiUser.rangeTxtStart ?? undefined,
+            rangeTxtEnd: apiUser.rangeTxtEnd ?? undefined,
+            passwordHash: idx >= 0 ? (users[idx].passwordHash || '') : '',
+            loginAttempts: 0, lockedUntil: '',
+            createdAt: idx >= 0 ? (users[idx].createdAt || '') : '',
+            lastLoginAt: idx >= 0 ? (users[idx].lastLoginAt || '') : '',
+            title: apiUser.role === 'rrhh' ? 'RRHH' : apiUser.role === 'sueldos' ? 'Sueldos' : apiUser.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
+            avatarDataUrl: idx >= 0 ? (users[idx].avatarDataUrl || '') : '',
+          };
           if (idx >= 0) {
-            users[idx].mustChangePassword = !!apiUser.mustChangePassword;
-            // Siempre sincronizar permisos desde el servidor (null = usar defaults de rol)
-            users[idx].permissions = apiUser.permissions ?? null;
-            users[idx].rangeStart = apiUser.rangeStart ?? users[idx].rangeStart;
-            users[idx].rangeEnd = apiUser.rangeEnd ?? users[idx].rangeEnd;
-            users[idx].rangeTxtStart = apiUser.rangeTxtStart ?? users[idx].rangeTxtStart;
-            users[idx].rangeTxtEnd = apiUser.rangeTxtEnd ?? users[idx].rangeTxtEnd;
-            saveUsers(users);
-          } else if (apiUser.id) {
-            // Usuario no está en localStorage (primer acceso en este dispositivo tras login existente)
-            const newU = {
-              id: apiUser.id,
-              username: apiUser.username,
-              displayName: apiUser.displayName || apiUser.username,
-              role: apiUser.role,
-              active: true,
-              mustChangePassword: !!apiUser.mustChangePassword,
-              permissions: apiUser.permissions ?? null,
-              rangeStart: apiUser.rangeStart ?? undefined,
-              rangeEnd: apiUser.rangeEnd ?? undefined,
-              rangeTxtStart: apiUser.rangeTxtStart ?? undefined,
-              rangeTxtEnd: apiUser.rangeTxtEnd ?? undefined,
-              passwordHash: '', loginAttempts: 0, lockedUntil: '',
-              createdAt: '', lastLoginAt: '',
-              title: apiUser.role === 'rrhh' ? 'RRHH' : apiUser.role === 'sueldos' ? 'Sueldos' : apiUser.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
-              avatarDataUrl: '',
-            };
-            users.push(newU);
-            saveUsers(users);
+            users[idx] = { ...users[idx], ...freshUser };
+          } else {
+            users.push(freshUser);
           }
+          saveUsers(users);
+          // Actualizar me directamente con datos frescos del servidor (no pasar por localStorage)
+          setMe(freshUser);
           setSessionState(getSession());
         }
       } catch {}
@@ -288,11 +286,11 @@ useEffect(() => {
 // Sesión actual
 const [session, setSessionState] = useState(getSession());
 
-// Usuario logueado (derivado de la sesión)
-const me = useMemo(() => {
-  if (!session?.userId) return null;
-  return getUserById(session.userId);
-}, [session]);
+// Usuario logueado — estado explícito (no derivado de localStorage para evitar permisos stale)
+const [me, setMe] = useState<any>(() => {
+  const s = getSession();
+  return s?.userId ? getUserById(s.userId) : null;
+});
 
 // Permisos efectivos del usuario
 const myPerms = useMemo(() => getUserEffectivePermissions(me), [me]);
@@ -1223,6 +1221,7 @@ const [helpOpen, setHelpOpen] = useState(false);
 function handleLogout() {
   try { logout(); } catch {}
   setSessionState(null);
+  setMe(null);
   setShowSplash(false);
   setPendingUser(null);
   setChangingPwd(false);
@@ -1248,7 +1247,8 @@ async function handleChangePassword(e?: React.FormEvent) {
     const users = loadUsers();
     const idx = users.findIndex((u: any) => u.id === me.id);
     if (idx >= 0) { users[idx].mustChangePassword = false; saveUsers(users); }
-    setSessionState(getSession()); // fuerza re-derive de me con mustChangePassword=false
+    setMe((prev: any) => prev ? { ...prev, mustChangePassword: false } : prev);
+    setSessionState(getSession());
     setChangingPwd(false);
     setNewPwd("");
     setLoginError("");
@@ -1302,6 +1302,7 @@ async function handleLoginSubmit(e?: React.FormEvent) {
   splashTimerRef.current = window.setTimeout(() => {
     setSession({ userId: res.user?.id });             // persistencia
     setSessionState({ userId: res.user?.id } as any); // memoria inmediata
+    setMe(res.user);                                   // permisos frescos directamente del login
     setShowSplash(false);
     setPendingUser(null);
   }, 900);
@@ -2650,6 +2651,7 @@ return (
           }}
           onSaved={(updated) => {
             upsertUser(updated);
+            setMe(updated);
             setSessionState(getSession());
             if (!me?.mustChangePassword) {
               setProfileOpen(false);
@@ -2669,6 +2671,7 @@ return (
             const users = loadUsers();
             const idx = users.findIndex((u: any) => u.id === me.id);
             if (idx >= 0) { users[idx].mustChangePassword = false; saveUsers(users); }
+            setMe((prev: any) => prev ? { ...prev, mustChangePassword: false } : prev);
             setSessionState(getSession());
             setProfileOpen(false);
             pushToast({
