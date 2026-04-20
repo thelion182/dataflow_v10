@@ -51,7 +51,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
   const skipSave = useRef(true);
   const [files, setFiles] = useState<any[]>(() => {
     const result = db.files.getAll();
-    if (Array.isArray(result)) { skipSave.current = false; return result.map(f => ({ ...f, size: Number(f.size) || 0 })); }
+    if (Array.isArray(result)) { skipSave.current = false; return result.map(f => ({ ...f, size: Number(f.size) || 0, byUserId: f.byUserId || f.uploaderId || '', byUsername: f.byUsername || f.uploaderName || '' })); }
     return [];
   });
 
@@ -78,10 +78,10 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
       const result = db.files.getAll();
       if (result && typeof (result as any).then === 'function') {
         (result as any).then((f: any) => {
-          if (Array.isArray(f)) setFiles(f.map((x: any) => ({ ...x, size: Number(x.size) || 0 })));
+          if (Array.isArray(f)) setFiles(f.map((x: any) => ({ ...x, size: Number(x.size) || 0, byUserId: x.byUserId || x.uploaderId || '', byUsername: x.byUsername || x.uploaderName || '' })));
         }).catch(() => {});
       } else if (Array.isArray(result) && result.length > 0) {
-        setFiles(result.map((f: any) => ({ ...f, size: Number(f.size) || 0 })));
+        setFiles(result.map((f: any) => ({ ...f, size: Number(f.size) || 0, byUserId: f.byUserId || f.uploaderId || '', byUsername: f.byUsername || f.uploaderName || '' })));
       }
     };
     window.addEventListener('dataflow:files:refresh', reload);
