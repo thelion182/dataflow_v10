@@ -30,7 +30,7 @@ interface Props {
 export function ProcesarDudasModal({ files, meId, meNombre, onProcess, onClose }: Props) {
   const [nroDesde, setNroDesde] = useState('');
   const [nroHasta, setNroHasta] = useState('');
-  const [tipoFiltro, setTipoFiltro] = useState<'respondidas' | 'arreglos'>('respondidas');
+  const [tipoFiltro, setTipoFiltro] = useState<'todos' | 'respondidas' | 'arreglos'>('todos');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -69,6 +69,7 @@ export function ProcesarDudasModal({ files, meId, meNombre, onProcess, onClose }
       // Tipo
       if (tipoFiltro === 'respondidas' && r._tipo !== 'duda') return false;
       if (tipoFiltro === 'arreglos' && r._tipo !== 'arreglo') return false;
+      // 'todos' no filtra por tipo
 
       // Rango de nro funcionario
       const nro = parseInt(r.nro || '0', 10);
@@ -200,7 +201,7 @@ export function ProcesarDudasModal({ files, meId, meNombre, onProcess, onClose }
           <div className="flex flex-col gap-1">
             <label className="text-xs text-neutral-400">Tipo</label>
             <div className="flex gap-1">
-              {(['respondidas', 'arreglos'] as const).map(t => (
+              {(['todos', 'respondidas', 'arreglos'] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => { setTipoFiltro(t); setSelected(new Set()); }}
@@ -209,7 +210,7 @@ export function ProcesarDudasModal({ files, meId, meNombre, onProcess, onClose }
                     tipoFiltro === t ? 'bg-neutral-600 text-neutral-100' : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200'
                   )}
                 >
-                  {t === 'respondidas' ? '💬 Dudas respondidas' : '🔧 Arreglos respondidos'}
+                  {t === 'todos' ? 'Todos' : t === 'respondidas' ? '💬 Dudas' : '🔧 Arreglos'}
                 </button>
               ))}
             </div>

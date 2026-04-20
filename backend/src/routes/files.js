@@ -131,10 +131,20 @@ router.put('/', requireAuth, async (req, res) => {
 
       // Detectar si alguna fila de observación fue respondida (solo si no hay hilo nuevo)
       let hasNewAnswer = false;
+      let answerTipo = 'duda';
       if (!isNew && !hasNewThread) {
         const oldAnswered = oldObs.reduce((n, t) => n + (t.rows || []).filter(r => r.answered).length, 0);
         const newAnswered = newObs.reduce((n, t) => n + (t.rows || []).filter(r => r.answered).length, 0);
         hasNewAnswer = newAnswered > oldAnswered;
+        if (hasNewAnswer) {
+          // Detectar el tipo del hilo que fue respondido
+          for (const newThread of newObs) {
+            const oldThread = oldObs.find(t => t.id === newThread.id);
+            const oldCount = (oldThread?.rows || []).filter(r => r.answered).length;
+            const newCount = (newThread.rows || []).filter(r => r.answered).length;
+            if (newCount > oldCount) { answerTipo = newThread.tipo || 'duda'; break; }
+          }
+        }
       }
       await client.query(
         `INSERT INTO files (id, period_id, name, size, mime_type, status, status_override,
@@ -191,6 +201,7 @@ router.put('/', requireAuth, async (req, res) => {
           fileId:   f.id,
           fileName: f.name,
           type:     'respuesta',
+          tipo:     answerTipo,
           byUser:   req.session.displayName || req.session.userId,
         });
       } else {

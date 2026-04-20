@@ -74,11 +74,16 @@ export function useSSE({ meId }: { meId?: string } = {}) {
         notify('dudas', 'Nueva duda', `${d.byUser} registró una duda en "${d.fileName}"`, { fileId: d.fileId });
         toast('Nueva duda', `${d.byUser} registró una duda en "${d.fileName}"`);
       } else if (d.type === 'respuesta') {
-        notify('respuestas', 'Duda respondida', `${d.byUser} respondió una duda en "${d.fileName}"`, { fileId: d.fileId });
-        toast('Duda respondida', `${d.byUser} respondió una duda en "${d.fileName}"`);
+        const esArreglo = d.tipo === 'arreglo';
+        const label = esArreglo ? 'Arreglo respondido' : 'Duda respondida';
+        const msg = esArreglo
+          ? `${d.byUser} respondió un arreglo en "${d.fileName}"`
+          : `${d.byUser} respondió una duda en "${d.fileName}"`;
+        notify('respuestas', label, msg, { fileId: d.fileId });
+        toast(label, msg);
       } else if (d.type === 'procesada') {
-        notify('procesamiento', 'Duda procesada', `${d.byUser} procesó una duda en "${d.fileName}"`, { fileId: d.fileId });
-        toast('Duda procesada', `${d.byUser} procesó una duda en "${d.fileName}"`);
+        notify('procesamiento', 'Procesado', `${d.byUser} procesó un registro en "${d.fileName}"`, { fileId: d.fileId });
+        toast('Procesado', `${d.byUser} procesó un registro en "${d.fileName}"`);
       }
       refreshFiles();
     });
