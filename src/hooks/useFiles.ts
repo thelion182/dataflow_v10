@@ -61,7 +61,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
     const result = db.files.getAll();
     if (result && typeof (result as any).then === 'function') {
       (result as any)
-        .then((f: any) => { if (Array.isArray(f)) { skipSave.current = false; setFiles(f.map((x: any) => ({ ...x, size: Number(x.size) || 0 }))); } })
+        .then((f: any) => { if (Array.isArray(f)) { skipSave.current = false; setFiles(f.map((x: any) => ({ ...x, size: Number(x.size) || 0, byUserId: x.byUserId || x.uploaderId || '', byUsername: x.byUsername || x.uploaderName || '' }))); } })
         .catch(() => {});
     }
   }, [me?.id]);
