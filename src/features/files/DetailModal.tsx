@@ -387,46 +387,98 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
 
                           {th.tipo === "arreglo" && (
                             <div className="mt-3 space-y-3">
-                              {/* Cuerpo del arreglo — resaltado */}
-                              <div className="rounded-xl border border-orange-700/50 bg-orange-950/30 p-3">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-400 bg-orange-900/40 border border-orange-700/40 px-2 py-0.5 rounded-full">
-                                    Arreglo de Información
-                                  </span>
-                                  {th.answered ? (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 border border-emerald-700/40 text-emerald-300">
-                                      Resuelto
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-300">
-                                      Pendiente de respuesta
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-sm text-neutral-100 whitespace-pre-wrap font-medium leading-relaxed">
-                                  {th.text}
-                                </div>
-                                <div className="text-[11px] text-neutral-500 mt-2">
-                                  Enviado por {userNameOr(th.createdByUsername)} • {formatDate(th.createdAt)}
-                                </div>
+                              {/* Encabezado */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-400 bg-orange-900/40 border border-orange-700/40 px-2 py-0.5 rounded-full">
+                                  Arreglo de Información
+                                </span>
+                                {(th.rows || []).every((r: any) => r.processed) ? (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 border border-emerald-700/40 text-emerald-300">Procesado</span>
+                                ) : (th.rows || []).every((r: any) => r.answered) ? (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-900/40 border border-sky-700/40 text-sky-300">Respondido · pend. procesar</span>
+                                ) : (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-300">Pendiente</span>
+                                )}
+                                <span className="text-[10px] text-neutral-500 ml-auto">
+                                  {userNameOr(th.byUsername || th.createdByUsername)} · {formatDate(th.createdAt)}
+                                </span>
                               </div>
 
+                              {/* Filas del arreglo */}
+                              {(th.rows || []).length > 0 && (
+                                <div className="rounded-xl border border-orange-700/30 bg-orange-950/20 overflow-hidden">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="border-b border-orange-700/20 text-orange-400/70">
+                                        <th className="text-left px-3 py-2 font-medium">Nº</th>
+                                        <th className="text-left px-3 py-2 font-medium">Nombre</th>
+                                        <th className="text-left px-3 py-2 font-medium">Acción</th>
+                                        <th className="text-left px-3 py-2 font-medium">Detalle</th>
+                                        <th className="text-left px-3 py-2 font-medium">CC</th>
+                                        <th className="text-left px-3 py-2 font-medium">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(th.rows || []).map((row: any) => {
+                                        const accionLabel = row.accion === 'alta' ? 'Alta' : row.accion === 'baja' ? 'Baja' : 'Modificar';
+                                        const accionColor = row.accion === 'alta' ? 'text-emerald-400' : row.accion === 'baja' ? 'text-red-400' : 'text-sky-400';
+                                        let detalle = '';
+                                        if (row.accion === 'modificar') {
+                                          detalle = [row.modCampo, row.modDe && row.modA ? `${row.modDe} → ${row.modA}` : ''].filter(Boolean).join(': ');
+                                        } else {
+                                          detalle = [row.codigo, row.codDesc, row.dhc && `D/H/C: ${row.dhc}`, row.actividad && `Act: ${row.actividad}`].filter(Boolean).join(' · ');
+                                        }
+                                        return (
+                                          <tr key={row.id} className="border-b border-orange-700/10 last:border-0">
+                                            <td className="px-3 py-2 font-mono text-neutral-300">{row.nro || '—'}</td>
+                                            <td className="px-3 py-2 text-neutral-200 max-w-[120px] truncate" title={row.nombre}>{row.nombre || '—'}</td>
+                                            <td className={`px-3 py-2 font-medium ${accionColor}`}>{accionLabel}</td>
+                                            <td className="px-3 py-2 text-neutral-400 max-w-[180px]">
+                                              <span className="block truncate" title={detalle || row.nota}>{detalle || row.nota || '—'}</span>
+                                            </td>
+                                            <td className="px-3 py-2 text-neutral-400">{row.cc || '—'}</td>
+                                            <td className="px-3 py-2">
+                                              {row.processed ? (
+                                                <span className="text-emerald-400 text-[10px]">✓ procesado</span>
+                                              ) : row.answered ? (
+                                                <span className="text-sky-400 text-[10px]">respondido</span>
+                                              ) : (
+                                                <span className="text-amber-400 text-[10px]">pendiente</span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+
+                              {/* Respuesta de Sueldos (si existe) */}
+                              {th.answered && th.answerText && (
+                                <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/25 p-3">
+                                  <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1">Nota de Sueldos</div>
+                                  <div className="text-sm text-neutral-100 whitespace-pre-wrap">{th.answerText}</div>
+                                  <div className="text-[11px] text-neutral-500 mt-1">
+                                    {userNameOr(th.answeredByUsername)} · {formatDate(th.answeredAt)}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Caja de respuesta para Sueldos (si aún no respondió) */}
                               {!th.answered && (meRole === "sueldos" || meRole === "admin") && (
                                 <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
-                                  <label className="block text-xs text-neutral-400 mb-1">
-                                    Respuesta (Sueldos)
-                                  </label>
+                                  <label className="block text-xs text-neutral-400 mb-1">Nota de Sueldos (opcional)</label>
                                   <AutoGrowTextarea
                                     value={(adjustReplyInputs[th.id] || "")}
                                     onChange={(v) => setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: v }))}
-                                    placeholder="Respuesta de Sueldos…"
-                                    className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none min-h-[110px]"
+                                    placeholder="Agregar nota…"
+                                    className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none min-h-[60px]"
                                   />
                                   <div className="mt-2 flex justify-end">
                                     <button
                                       onClick={() => {
                                         const texto = adjustReplyInputs[th.id] || "";
-                                        if (!texto.trim()) { alert("Escribí una respuesta antes de confirmar."); return; }
                                         answerAdjustThread(selectedFile.id, th.id, texto);
                                         setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: "" }));
                                       }}
@@ -434,18 +486,6 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                     >
                                       Confirmar respuesta
                                     </button>
-                                  </div>
-                                </div>
-                              )}
-
-                              {th.answered && th.answerText && (
-                                <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/25 p-3">
-                                  <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1.5">
-                                    Respuesta de Sueldos
-                                  </div>
-                                  <div className="text-sm text-neutral-100 whitespace-pre-wrap">{th.answerText}</div>
-                                  <div className="text-[11px] text-neutral-500 mt-1.5">
-                                    Por: {userNameOr(th.answeredByUsername)} • {formatDate(th.answeredAt)}
                                   </div>
                                 </div>
                               )}

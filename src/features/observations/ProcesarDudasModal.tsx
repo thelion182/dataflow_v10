@@ -44,12 +44,12 @@ export function ProcesarDudasModal({ files, meId, meNombre, onProcess, onClose }
       const obs = file.observations || [];
       for (const thread of obs) {
         if (thread.deleted) continue;
+        const tipo = thread.tipo || 'duda';
         for (const row of (thread.rows || [])) {
-          // Sueldos solo puede procesar:
-          // - dudas respondidas (answered=true, processed=false)
-          // - arreglos respondidos (tipo=arreglo, answered=true, processed=false)
-          if (!row.answered || row.processed) continue;
-          const tipo = thread.tipo || 'duda';
+          // Dudas: solo mostrar si están respondidas por RRHH y aún no procesadas
+          // Arreglos: mostrar si aún no están procesados (answered no aplica igual)
+          if (tipo === 'duda' && (!row.answered || row.processed)) continue;
+          if (tipo === 'arreglo' && row.processed) continue;
           rows.push({
             ...row,
             _tipo: tipo,
