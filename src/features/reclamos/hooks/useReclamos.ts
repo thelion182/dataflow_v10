@@ -93,9 +93,10 @@ export function useReclamos({ meId }: { meId?: string } = {}) {
       estado: EstadoReclamo,
       usuarioId: string,
       usuarioNombre: string,
-      nota?: string
+      nota?: string,
+      estadoAnterior?: string
     ) => {
-      await db.reclamos.updateEstado(id, estado, usuarioId, usuarioNombre, nota);
+      await db.reclamos.updateEstado(id, estado, usuarioId, usuarioNombre, nota, estadoAnterior);
       reload();
     },
     []

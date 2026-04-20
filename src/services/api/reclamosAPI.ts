@@ -71,10 +71,11 @@ export async function updateEstado(
   estado: string,
   usuarioId: string,
   usuarioNombre: string,
-  nota?: string
+  nota?: string,
+  estadoAnterior?: string
 ): Promise<any | null> {
   try {
-    return await apiPost(`/reclamos/${id}/estado`, { estado, usuarioId, usuarioNombre, nota });
+    return await apiPost(`/reclamos/${id}/estado`, { estado, estadoAnterior, usuarioId, usuarioNombre, nota });
   } catch (err) {
     console.error('[reclamosAPI] updateEstado:', err);
     return null;

@@ -176,30 +176,52 @@ export function FileTable({
 
                     {/* Dudas + arreglos */}
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Dudas (Sueldos) */}
-                        <span
-                          className={`px-2 py-0.5 rounded-lg text-[11px] border ${
-                            pendingDudasCount(f) > 0
-                              ? "bg-amber-500/15 text-amber-300 border-amber-600/40"
-                              : "bg-emerald-500/15 text-emerald-300 border-emerald-600/30"
-                          }`}
-                          title="Dudas (cargadas por Sueldos)"
-                        >
-                          Dudas: {pendingDudasCount(f)} pend · {answeredDudasCount(f)} resp
-                        </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Sin actividad */}
+                        {pendingDudasCount(f) === 0 && answeredDudasCount(f) === 0 &&
+                         pendingArreglosCount(f) === 0 && answeredArreglosCount(f) === 0 && (
+                          <span className="text-neutral-600 text-[11px]">—</span>
+                        )}
 
-                        {/* Arreglos (RRHH) */}
-                        <span
-                          className={`px-2 py-0.5 rounded-lg text-[11px] border ${
-                            pendingArreglosCount(f) > 0
-                              ? "bg-sky-500/15 text-sky-300 border-sky-600/40"
-                              : "bg-emerald-500/15 text-emerald-300 border-emerald-600/30"
-                          }`}
-                          title="Arreglos (solicitados por Información/RRHH)"
-                        >
-                          Arreglos: {pendingArreglosCount(f)} pend · {answeredArreglosCount(f)} resp
-                        </span>
+                        {/* Dudas pendientes — rojo urgente */}
+                        {pendingDudasCount(f) > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                            title={`${pendingDudasCount(f)} duda(s) sin responder`}
+                          >
+                            ⚠ {pendingDudasCount(f)} duda{pendingDudasCount(f) > 1 ? "s" : ""}
+                          </span>
+                        )}
+
+                        {/* Dudas respondidas (solo si no hay pendientes) */}
+                        {pendingDudasCount(f) === 0 && answeredDudasCount(f) > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] bg-neutral-800 text-neutral-400 border border-neutral-700"
+                            title={`${answeredDudasCount(f)} duda(s) respondida(s)`}
+                          >
+                            ✓ {answeredDudasCount(f)} duda{answeredDudasCount(f) > 1 ? "s" : ""}
+                          </span>
+                        )}
+
+                        {/* Arreglos pendientes */}
+                        {pendingArreglosCount(f) > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                            title={`${pendingArreglosCount(f)} arreglo(s) sin procesar`}
+                          >
+                            ↺ {pendingArreglosCount(f)} arreglo{pendingArreglosCount(f) > 1 ? "s" : ""}
+                          </span>
+                        )}
+
+                        {/* Arreglos respondidos (solo si no hay pendientes) */}
+                        {pendingArreglosCount(f) === 0 && answeredArreglosCount(f) > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] bg-neutral-800 text-neutral-400 border border-neutral-700"
+                            title={`${answeredArreglosCount(f)} arreglo(s) procesado(s)`}
+                          >
+                            ✓ {answeredArreglosCount(f)} arreglo{answeredArreglosCount(f) > 1 ? "s" : ""}
+                          </span>
+                        )}
                       </div>
                     </td>
 

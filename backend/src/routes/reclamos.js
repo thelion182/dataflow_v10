@@ -16,6 +16,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { broadcast } = require('./events');
+const { sendMail, htmlCambioEstado } = require('../mailer');
 
 const router = express.Router();
 
@@ -148,15 +149,17 @@ router.get('/config', requireAuth, async (req, res) => {
       causales: [], tiposReclamo: [],
       emailSueldos: 'reclamos@circulocatolico.com.uy',
       whatsappActivo: false,
+      notificarLiquidado: true,
     });
     res.json({
-      cargos:         c.cargos || [],
-      centrosCosto:   c.centros_costo || [],
-      liquidaciones:  c.liquidaciones || [],
-      causales:       c.causales || [],
-      tiposReclamo:   c.tipos_reclamo || [],
-      emailSueldos:   c.email_sueldos,
-      whatsappActivo: c.whatsapp_activo,
+      cargos:             c.cargos || [],
+      centrosCosto:       c.centros_costo || [],
+      liquidaciones:      c.liquidaciones || [],
+      causales:           c.causales || [],
+      tiposReclamo:       c.tipos_reclamo || [],
+      emailSueldos:       c.email_sueldos,
+      whatsappActivo:     c.whatsapp_activo,
+      notificarLiquidado: c.notificar_liquidado !== false, // default true
     });
   } catch (err) {
     console.error('[reclamos] GET /config:', err);
@@ -170,18 +173,21 @@ router.put('/config', requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO reclamos_config (id, cargos, centros_costo, liquidaciones,
-                                    causales, tipos_reclamo, email_sueldos, whatsapp_activo)
-       VALUES (1,$1,$2,$3,$4,$5,$6,$7)
+                                    causales, tipos_reclamo, email_sueldos, whatsapp_activo,
+                                    notificar_liquidado)
+       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (id) DO UPDATE SET
-         cargos          = EXCLUDED.cargos,
-         centros_costo   = EXCLUDED.centros_costo,
-         liquidaciones   = EXCLUDED.liquidaciones,
-         causales        = EXCLUDED.causales,
-         tipos_reclamo   = EXCLUDED.tipos_reclamo,
-         email_sueldos   = EXCLUDED.email_sueldos,
-         whatsapp_activo = EXCLUDED.whatsapp_activo`,
+         cargos              = EXCLUDED.cargos,
+         centros_costo       = EXCLUDED.centros_costo,
+         liquidaciones       = EXCLUDED.liquidaciones,
+         causales            = EXCLUDED.causales,
+         tipos_reclamo       = EXCLUDED.tipos_reclamo,
+         email_sueldos       = EXCLUDED.email_sueldos,
+         whatsapp_activo     = EXCLUDED.whatsapp_activo,
+         notificar_liquidado = EXCLUDED.notificar_liquidado`,
       [c.cargos, c.centrosCosto, c.liquidaciones,
-       c.causales, c.tiposReclamo, c.emailSueldos, !!c.whatsappActivo]
+       c.causales, c.tiposReclamo, c.emailSueldos, !!c.whatsappActivo,
+       c.notificarLiquidado !== false]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -259,7 +265,7 @@ router.delete('/:id', requireRole('rrhh', 'admin', 'superadmin'), async (req, re
 
 // ── POST /api/reclamos/:id/estado ────────────────────────────────────────────
 router.post('/:id/estado', requireAuth, async (req, res) => {
-  const { estado, usuarioId, usuarioNombre, nota } = req.body;
+  const { estado, estadoAnterior, usuarioId, usuarioNombre, nota } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -280,6 +286,37 @@ router.post('/:id/estado', requireAuth, async (req, res) => {
       estado,
       nombreFuncionario: reclamo.nombreFuncionario,
     });
+
+    // ── Envío de email si SMTP configurado ──────────────────────────────────
+    // Obtener config para verificar el toggle notificar_liquidado
+    try {
+      const cfgResult = await pool.query('SELECT * FROM reclamos_config WHERE id = 1');
+      const cfg = cfgResult.rows[0];
+      const notificarLiquidado = cfg ? cfg.notificar_liquidado !== false : true;
+
+      const debeEnviar =
+        reclamo.emailFuncionario &&
+        (estado !== 'Liquidado' || notificarLiquidado);
+
+      if (debeEnviar) {
+        const estadoPrev = estadoAnterior || 'Emitido';
+        sendMail({
+          to: reclamo.emailFuncionario,
+          subject: `Reclamo ${reclamo.ticket} — ${estado}`,
+          html: htmlCambioEstado({
+            ticket:           reclamo.ticket,
+            nombreFuncionario: reclamo.nombreFuncionario,
+            estadoAnterior:   estadoPrev,
+            nuevoEstado:      estado,
+            nota:             nota || null,
+            logoUrl:          cfg?.logo_data_url || null,
+          }),
+        }); // fire-and-forget — no bloquea la respuesta
+      }
+    } catch (mailErr) {
+      console.error('[reclamos] Error al preparar email:', mailErr.message);
+      // No propagar — el cambio de estado ya fue guardado correctamente
+    }
 
     res.json(reclamo);
   } catch (err) {

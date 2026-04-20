@@ -105,7 +105,7 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
   async function handleVer(r: Reclamo) {
     setDetalleReclamo(r);
     if (isSueldos && r.estado === 'Emitido') {
-      await cambiarEstado(r.id, 'En proceso', meId, meNombre);
+      await cambiarEstado(r.id, 'En proceso', meId, meNombre, undefined, r.estado);
       generarNotificacionVistaEnSueldos(r);
       reload();
     }
@@ -113,7 +113,7 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
 
   async function handleCambiarEstado(r: Reclamo, estado: EstadoReclamo, nota: string) {
     const estadoAnterior = r.estado;
-    await cambiarEstado(r.id, estado, meId, meNombre, nota || undefined);
+    await cambiarEstado(r.id, estado, meId, meNombre, nota || undefined, estadoAnterior);
     logAudit({
       modulo: 'reclamos',
       accion: 'cambiar_estado',
@@ -132,7 +132,7 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
       const r = reclamos.find(x => x.id === id);
       if (!r) continue;
       const estadoAnterior = r.estado;
-      await cambiarEstado(id, estado, meId, meNombre, nota || undefined);
+      await cambiarEstado(id, estado, meId, meNombre, nota || undefined, estadoAnterior);
       logAudit({
         modulo: 'reclamos',
         accion: 'cambiar_estado',

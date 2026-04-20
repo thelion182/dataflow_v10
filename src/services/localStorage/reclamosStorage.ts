@@ -68,7 +68,8 @@ export function updateEstado(
   estado: EstadoReclamo,
   usuarioId: string,
   usuarioNombre: string,
-  nota?: string
+  nota?: string,
+  _estadoAnterior?: string
 ): Reclamo | null {
   const list = getAll();
   const idx = list.findIndex((r) => r.id === id);
