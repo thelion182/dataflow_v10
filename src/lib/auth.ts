@@ -230,8 +230,8 @@ export async function attemptLogin(username: string, password: string) {
         lockedUntil: '',
         createdAt: '',
         lastLoginAt: nowISO(),
-        title: data.role === 'rrhh' ? 'RRHH' : data.role === 'sueldos' ? 'Sueldos' : data.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
-        avatarDataUrl: '',
+        title: data.title ?? '',
+        avatarDataUrl: data.avatarDataUrl ?? '',
       };
       upsertUser(u);
       setSession({ userId: u.id });
