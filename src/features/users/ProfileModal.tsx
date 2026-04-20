@@ -24,6 +24,7 @@ export function ProfileModal({
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [changingPwd, setChangingPwd] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [avatarMode, setAvatarMode] = useState<"none" | "upload" | "draw">("none");
 
   const roleKey = String(me?.role ?? me?.roleId ?? "");
@@ -66,15 +67,24 @@ export function ProfileModal({
   }
 
   async function save() {
+    setSaving(true);
     const updated = { ...me, displayName: displayName.trim() || me.username, title: title.trim(), avatarDataUrl: avatar || "" };
     try {
-      await updateMyProfile(me.id, {
+      const result = await updateMyProfile(me.id, {
         displayName: updated.displayName,
         title: updated.title,
         avatarDataUrl: updated.avatarDataUrl,
       });
+      if (result && !result.ok) {
+        alert(result.error || "No se pudo guardar el perfil. Verificá tu conexión.");
+        return;
+      }
     } catch (e) {
       console.error('[profile] save:', e);
+      alert("Error al guardar el perfil. Intentá de nuevo.");
+      return;
+    } finally {
+      setSaving(false);
     }
     onSaved(updated);
   }
@@ -172,8 +182,10 @@ export function ProfileModal({
 
         {!forcePasswordChange && (
           <div className="flex justify-end gap-2 mt-4">
-            <button type="button" onClick={onClose} style={{ padding: '8px 14px' }} className="rounded-xl bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-sm">Cancelar</button>
-            <button type="button" onClick={save} style={{ padding: '8px 14px' }} className="rounded-xl bg-neutral-800 hover:bg-neutral-700 text-sm">Guardar</button>
+            <button type="button" onClick={onClose} disabled={saving} style={{ padding: '8px 14px' }} className="rounded-xl bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 disabled:opacity-50 text-sm">Cancelar</button>
+            <button type="button" onClick={save} disabled={saving} style={{ padding: '8px 14px' }} className="rounded-xl bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+              {saving ? "Guardando…" : "Guardar perfil"}
+            </button>
           </div>
         )}
       </div>

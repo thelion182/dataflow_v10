@@ -60,14 +60,7 @@ export function upsertUser(user: AppUser) {
  * Usa PUT /api/auth/profile que permite cualquier rol autenticado.
  */
 export async function updateMyProfile(userId: string, profile: { displayName?: string; title?: string; avatarDataUrl?: string }) {
-  const list = loadUsers();
-  const idx = list.findIndex((u) => u.id === userId);
-  if (idx >= 0) {
-    if (profile.displayName !== undefined) list[idx].displayName = profile.displayName;
-    if (profile.title !== undefined) (list[idx] as any).title = profile.title;
-    if (profile.avatarDataUrl !== undefined) (list[idx] as any).avatarDataUrl = profile.avatarDataUrl;
-    saveUsers(list);
-  }
+  // En modo API: primero persistir en el servidor; si falla, no guardar tampoco en localStorage
   if (USE_API) {
     try {
       const res = await fetch(`${API_URL}/auth/profile`, {
@@ -78,11 +71,27 @@ export async function updateMyProfile(userId: string, profile: { displayName?: s
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        return { ok: false, error: d.error || 'Error al guardar perfil.' };
+        console.error('[updateMyProfile] server error:', res.status, d);
+        return { ok: false, error: d.error || `Error ${res.status} al guardar perfil.` };
       }
-    } catch {
+    } catch (err) {
+      console.error('[updateMyProfile] network error:', err);
       return { ok: false, error: 'Error de conexión al guardar perfil.' };
     }
+  }
+  // Actualizar localStorage (fuera del bloque USE_API para que funcione en ambos modos)
+  try {
+    const list = loadUsers();
+    const idx = list.findIndex((u) => u.id === userId);
+    if (idx >= 0) {
+      if (profile.displayName !== undefined) list[idx].displayName = profile.displayName;
+      if (profile.title !== undefined) (list[idx] as any).title = profile.title;
+      if (profile.avatarDataUrl !== undefined) (list[idx] as any).avatarDataUrl = profile.avatarDataUrl;
+      saveUsers(list);
+    }
+  } catch (e) {
+    console.warn('[updateMyProfile] localStorage write failed (quota?):', e);
+    // No es fatal — el servidor ya tiene los datos
   }
   return { ok: true };
 }
