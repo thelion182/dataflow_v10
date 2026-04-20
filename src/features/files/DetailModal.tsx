@@ -165,18 +165,17 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                           style={esEliminado ? { filter: 'grayscale(0.6)' } : undefined}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-sm">
-                              <span className={`font-medium ${esEliminado ? 'line-through text-neutral-500' : 'text-neutral-200'}`}>
-                                {th.tipo === "arreglo" ? "Arreglo (RRHH)" : "Duda (Sueldos)"}
+                            <div className="text-sm flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className={`font-medium ${esEliminado ? 'line-through text-neutral-500' : th.tipo === 'arreglo' ? 'text-orange-300' : 'text-neutral-200'}`}>
+                                {th.tipo === "arreglo" ? "🔧 Arreglo" : "💬 Duda"}
                               </span>
-                              <span className="text-neutral-500">
-                                {" "}
-                                • {formatDate(th.createdAt)}
-                              </span>
-                              <span className="text-neutral-600">
-                                {" "}
-                                • por {userNameOr(th.createdByUsername)}
-                              </span>
+                              {th.tipo === "arreglo" && !esEliminado && (() => {
+                                const rows = th.rows || [];
+                                if (rows.every((r: any) => r.processed)) return <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 border border-emerald-700/40 text-emerald-300">procesado</span>;
+                                if (rows.length > 0 && rows.every((r: any) => r.answered)) return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-900/50 border border-sky-700/40 text-sky-300">pend. procesar</span>;
+                                return <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 border border-amber-700/40 text-amber-300">pendiente</span>;
+                              })()}
+                              <span className="text-neutral-500 text-xs">{formatDate(th.createdAt)} · {userNameOr(th.createdByUsername || th.byUsername)}</span>
                               {esEliminado && (
                                 <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 border border-neutral-700 rounded px-1">
                                   Anulado · {th.deletedByUsername || 'admin'} · {formatDate(th.deletedAt)}
@@ -386,65 +385,57 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                           )}
 
                           {th.tipo === "arreglo" && (
-                            <div className="mt-3 space-y-3">
-                              {/* Encabezado */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-400 bg-orange-900/40 border border-orange-700/40 px-2 py-0.5 rounded-full">
-                                  Arreglo de Información
-                                </span>
-                                {(th.rows || []).every((r: any) => r.processed) ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 border border-emerald-700/40 text-emerald-300">Procesado</span>
-                                ) : (th.rows || []).every((r: any) => r.answered) ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-900/40 border border-sky-700/40 text-sky-300">Respondido · pend. procesar</span>
-                                ) : (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-300">Pendiente</span>
-                                )}
-                                <span className="text-[10px] text-neutral-500 ml-auto">
-                                  {userNameOr(th.byUsername || th.createdByUsername)} · {formatDate(th.createdAt)}
-                                </span>
-                              </div>
-
-                              {/* Filas del arreglo */}
+                            <div className="mt-2 space-y-2">
+                              {/* Tabla de filas del arreglo */}
                               {(th.rows || []).length > 0 && (
-                                <div className="rounded-xl border border-orange-700/30 bg-orange-950/20 overflow-hidden">
+                                <div className="rounded-lg border border-orange-800/30 bg-orange-950/15 overflow-x-auto">
                                   <table className="w-full text-xs">
                                     <thead>
-                                      <tr className="border-b border-orange-700/20 text-orange-400/70">
-                                        <th className="text-left px-3 py-2 font-medium">Nº</th>
-                                        <th className="text-left px-3 py-2 font-medium">Nombre</th>
-                                        <th className="text-left px-3 py-2 font-medium">Acción</th>
-                                        <th className="text-left px-3 py-2 font-medium">Detalle</th>
-                                        <th className="text-left px-3 py-2 font-medium">CC</th>
-                                        <th className="text-left px-3 py-2 font-medium">Estado</th>
+                                      <tr className="border-b border-orange-800/20 text-[10px] text-orange-400/60 uppercase tracking-wide">
+                                        <th className="text-left px-2.5 py-1.5 font-medium w-14">Nº</th>
+                                        <th className="text-left px-2.5 py-1.5 font-medium">Nombre / Cargo</th>
+                                        <th className="text-left px-2.5 py-1.5 font-medium w-20">Acción</th>
+                                        <th className="text-left px-2.5 py-1.5 font-medium">Detalle</th>
+                                        <th className="text-left px-2.5 py-1.5 font-medium w-28">CC</th>
+                                        <th className="text-left px-2.5 py-1.5 font-medium w-24">Estado</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {(th.rows || []).map((row: any) => {
+                                        const accionColor = row.accion === 'alta' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-700/30' : row.accion === 'baja' ? 'bg-red-500/15 text-red-300 border-red-700/30' : 'bg-sky-500/15 text-sky-300 border-sky-700/30';
                                         const accionLabel = row.accion === 'alta' ? 'Alta' : row.accion === 'baja' ? 'Baja' : 'Modificar';
-                                        const accionColor = row.accion === 'alta' ? 'text-emerald-400' : row.accion === 'baja' ? 'text-red-400' : 'text-sky-400';
-                                        let detalle = '';
+                                        let detalle: string[] = [];
                                         if (row.accion === 'modificar') {
-                                          detalle = [row.modCampo, row.modDe && row.modA ? `${row.modDe} → ${row.modA}` : ''].filter(Boolean).join(': ');
+                                          if (row.modCampo) detalle.push(row.modCampo);
+                                          if (row.modDe || row.modA) detalle.push(`${row.modDe || '?'} → ${row.modA || '?'}`);
                                         } else {
-                                          detalle = [row.codigo, row.codDesc, row.dhc && `D/H/C: ${row.dhc}`, row.actividad && `Act: ${row.actividad}`].filter(Boolean).join(' · ');
+                                          if (row.codigo) detalle.push(row.codigo);
+                                          if (row.codDesc) detalle.push(row.codDesc);
+                                          if (row.dhc) detalle.push(`D/H/C: ${row.dhc}`);
+                                          if (row.actividad) detalle.push(`Act: ${row.actividad}`);
                                         }
+                                        if (row.nota) detalle.push(`Nota: ${row.nota}`);
                                         return (
-                                          <tr key={row.id} className="border-b border-orange-700/10 last:border-0">
-                                            <td className="px-3 py-2 font-mono text-neutral-300">{row.nro || '—'}</td>
-                                            <td className="px-3 py-2 text-neutral-200 max-w-[120px] truncate" title={row.nombre}>{row.nombre || '—'}</td>
-                                            <td className={`px-3 py-2 font-medium ${accionColor}`}>{accionLabel}</td>
-                                            <td className="px-3 py-2 text-neutral-400 max-w-[180px]">
-                                              <span className="block truncate" title={detalle || row.nota}>{detalle || row.nota || '—'}</span>
+                                          <tr key={row.id} className="border-b border-orange-800/10 last:border-0 hover:bg-orange-900/10">
+                                            <td className="px-2.5 py-2 font-mono text-neutral-300 align-top">{row.nro || '—'}</td>
+                                            <td className="px-2.5 py-2 align-top">
+                                              <div className="text-neutral-200 font-medium">{row.nombre || '—'}</div>
+                                              {row.cargo && <div className="text-[10px] text-neutral-500 mt-0.5">{row.cargo}</div>}
                                             </td>
-                                            <td className="px-3 py-2 text-neutral-400">{row.cc || '—'}</td>
-                                            <td className="px-3 py-2">
-                                              {row.processed ? (
-                                                <span className="text-emerald-400 text-[10px]">✓ procesado</span>
-                                              ) : row.answered ? (
-                                                <span className="text-sky-400 text-[10px]">respondido</span>
-                                              ) : (
-                                                <span className="text-amber-400 text-[10px]">pendiente</span>
-                                              )}
+                                            <td className="px-2.5 py-2 align-top">
+                                              <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-medium ${accionColor}`}>{accionLabel}</span>
+                                            </td>
+                                            <td className="px-2.5 py-2 align-top text-neutral-400 text-[11px] leading-relaxed">
+                                              {detalle.length > 0 ? detalle.map((d, i) => <span key={i} className="block">{d}</span>) : '—'}
+                                            </td>
+                                            <td className="px-2.5 py-2 align-top text-neutral-400">{row.cc || '—'}</td>
+                                            <td className="px-2.5 py-2 align-top">
+                                              {row.processed
+                                                ? <span className="text-[10px] text-emerald-400">✓ procesado<br/><span className="text-neutral-600">{userNameOr(row.processedByUsername)}</span></span>
+                                                : row.answered
+                                                ? <span className="text-[10px] text-sky-400">respondido<br/><span className="text-neutral-600">{userNameOr(row.answeredByUsername)}</span></span>
+                                                : <span className="text-[10px] text-amber-400">pendiente</span>
+                                              }
                                             </td>
                                           </tr>
                                         );
@@ -454,39 +445,33 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                 </div>
                               )}
 
-                              {/* Respuesta de Sueldos (si existe) */}
-                              {th.answered && th.answerText && (
-                                <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/25 p-3">
-                                  <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1">Nota de Sueldos</div>
-                                  <div className="text-sm text-neutral-100 whitespace-pre-wrap">{th.answerText}</div>
-                                  <div className="text-[11px] text-neutral-500 mt-1">
-                                    {userNameOr(th.answeredByUsername)} · {formatDate(th.answeredAt)}
-                                  </div>
+                              {/* Nota de Sueldos (si existe) */}
+                              {th.answerText && (
+                                <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border border-emerald-800/30 bg-emerald-950/15">
+                                  <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wide mt-0.5 shrink-0">Nota Sueldos</span>
+                                  <span className="text-xs text-neutral-300 flex-1">{th.answerText}</span>
+                                  <span className="text-[10px] text-neutral-600 shrink-0">{userNameOr(th.answeredByUsername)} · {formatDate(th.answeredAt)}</span>
                                 </div>
                               )}
 
-                              {/* Caja de respuesta para Sueldos (si aún no respondió) */}
+                              {/* Caja de nota opcional para Sueldos */}
                               {!th.answered && (meRole === "sueldos" || meRole === "admin") && (
-                                <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
-                                  <label className="block text-xs text-neutral-400 mb-1">Nota de Sueldos (opcional)</label>
+                                <div className="flex items-end gap-2">
                                   <AutoGrowTextarea
                                     value={(adjustReplyInputs[th.id] || "")}
                                     onChange={(v) => setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: v }))}
-                                    placeholder="Agregar nota…"
-                                    className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none min-h-[60px]"
+                                    placeholder="Nota de Sueldos (opcional)…"
+                                    className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 outline-none text-sm min-h-[38px]"
                                   />
-                                  <div className="mt-2 flex justify-end">
-                                    <button
-                                      onClick={() => {
-                                        const texto = adjustReplyInputs[th.id] || "";
-                                        answerAdjustThread(selectedFile.id, th.id, texto);
-                                        setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: "" }));
-                                      }}
-                                      className="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm text-white"
-                                    >
-                                      Confirmar respuesta
-                                    </button>
-                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      answerAdjustThread(selectedFile.id, th.id, adjustReplyInputs[th.id] || "");
+                                      setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: "" }));
+                                    }}
+                                    className="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm text-white shrink-0"
+                                  >
+                                    Confirmar
+                                  </button>
                                 </div>
                               )}
                             </div>
