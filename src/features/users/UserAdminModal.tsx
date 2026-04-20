@@ -29,6 +29,8 @@ export function UserAdminModal({
   const isSuperAdmin = meRole === "superadmin";
   const isAdminOrSuper = meRole === "admin" || meRole === "superadmin";
   const [q, setQ] = useState("");
+  const [filterRole, setFilterRole] = useState<string>("");
+  const [filterActive, setFilterActive] = useState<string>("");
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<"rrhh" | "sueldos" | "admin">("rrhh");
   const [tempPass, setTempPass] = useState("");
@@ -57,11 +59,20 @@ export function UserAdminModal({
       users.filter((u: any) => {
         // Admin no ve superadmins; solo el superadmin los ve
         if (!isSuperAdmin && u.role === "superadmin") return false;
-        const text = (`${u.username || ""} ${u.displayName || ""} ${ROLE_LABELS[u.role] || u.role || ""}`).toLowerCase().trim();
-        if (!q) return true;
-        return text.includes(q.toLowerCase());
+        // Filtro por rol
+        if (filterRole && u.role !== filterRole) return false;
+        // Filtro por estado activo
+        if (filterActive === "activo" && !u.active) return false;
+        if (filterActive === "inactivo" && u.active) return false;
+        // Filtro de texto (nombre de usuario, nombre completo, rol)
+        const qTrimmed = q.trim().toLowerCase();
+        if (qTrimmed) {
+          const text = `${u.username || ""} ${u.displayName || ""} ${ROLE_LABELS[u.role] || u.role || ""}`.toLowerCase();
+          if (!text.includes(qTrimmed)) return false;
+        }
+        return true;
       }),
-    [q, users, isSuperAdmin]
+    [q, filterRole, filterActive, users, isSuperAdmin]
   );
 
   function isStrong(p: string) {
@@ -189,7 +200,34 @@ export function UserAdminModal({
           {/* Listado */}
           <div className="rounded-2xl border border-neutral-800 p-3 bg-neutral-900/40">
             <h4 className="font-medium mb-2">Usuarios</h4>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="w-full px-3 py-2 rounded-xl bg-neutral-800 outline-none mb-2" />
+            <div className="flex flex-wrap gap-2 mb-2">
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar por nombre o usuario…"
+                className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-neutral-800 outline-none text-sm"
+              />
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-neutral-800 outline-none text-sm"
+              >
+                <option value="">Todos los roles</option>
+                <option value="rrhh">Información</option>
+                <option value="sueldos">Sueldos</option>
+                <option value="admin">Administrador</option>
+                {isSuperAdmin && <option value="superadmin">Super Admin</option>}
+              </select>
+              <select
+                value={filterActive}
+                onChange={(e) => setFilterActive(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-neutral-800 outline-none text-sm"
+              >
+                <option value="">Todos</option>
+                <option value="activo">Activos</option>
+                <option value="inactivo">Inactivos</option>
+              </select>
+            </div>
             <div className="max-h-[50vh] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="text-neutral-400">
