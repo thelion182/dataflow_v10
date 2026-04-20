@@ -48,6 +48,7 @@ Dataflow_v10/
 │   ├── src/
 │   │   ├── index.js                 ← entrada Express, CORS dinámico, sesión, rutas
 │   │   ├── db.js                    ← pool PostgreSQL
+│   │   ├── mailer.js                ← envío de emails SMTP (Zimbra) — se activa solo si SMTP_HOST está en .env
 │   │   ├── middleware/auth.js       ← requireAuth, requireRole
 │   │   └── routes/
 │   │       ├── auth.js              ← login (bcrypt+lockout), logout, /me, /profile, change-password
@@ -109,6 +110,7 @@ docker compose exec db psql -U dataflow -d dataflow -f /sql/04_files_combination
 docker compose exec db psql -U dataflow -d dataflow -f /sql/05_combinations_cc.sql
 docker compose exec db psql -U dataflow -d dataflow -f /sql/06_users_permissions.sql
 docker compose exec db psql -U dataflow -d dataflow -f /sql/07_users_profile.sql
+docker compose exec db psql -U dataflow -d dataflow -f /sql/08_reclamos_notificar.sql
 ```
 
 ### Paso 3 — Frontend
@@ -430,7 +432,8 @@ ON CONFLICT (user_id, period_id) DO UPDATE
 - **Auto En proceso:** cuando sueldos abre un reclamo `Emitido`, cambia automáticamente
 - **rrhh** solo puede cambiar estado de `Rechazado/Duda de reclamo` → `Emitido`
 - **Campo `adjuntos`:** array JSON con base64 data URLs. En producción considerar S3 o disco
-- **Notificar al liquidar:** si `reclamos_config.notificar_liquidado = true` y el estado pasa a `Liquidado`, se registra la notificación y se simula envío de email a `email_funcionario`
+- **Notificar al liquidar:** si `reclamos_config.notificar_liquidado = true` y el estado pasa a `Liquidado`, se envía email real al `email_funcionario` (requiere SMTP configurado — ver sección 9)
+- **Emails en otros cambios de estado:** si SMTP está configurado, se envía email al funcionario en todo cambio de estado (En proceso, Rechazado, etc.), independientemente del toggle de Liquidado
 
 ---
 
@@ -459,16 +462,19 @@ El esquema base está en `backend/sql/01_schema.sql`. Tras el deploy inicial, se
 | `05_combinations_cc.sql` | Columna `cc` (centro de costo) en tabla `combinations` |
 | `06_users_permissions.sql` | `ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB` |
 | `07_users_profile.sql` | `ALTER TABLE users ADD COLUMN IF NOT EXISTS title VARCHAR(200)` y `avatar_data_url TEXT` |
+| `08_reclamos_notificar.sql` | `ALTER TABLE reclamos_config ADD COLUMN IF NOT EXISTS notificar_liquidado BOOLEAN DEFAULT TRUE` |
 
 **Aplicar migraciones en BD existente:**
 ```bash
 docker compose exec db psql -U dataflow -d dataflow -f /sql/06_users_permissions.sql
 docker compose exec db psql -U dataflow -d dataflow -f /sql/07_users_profile.sql
+docker compose exec db psql -U dataflow -d dataflow -f /sql/08_reclamos_notificar.sql
 ```
 
 **Verificar que las columnas existen:**
 ```bash
 docker compose exec db psql -U dataflow -d dataflow -c "\d users" | grep -E "title|avatar|permissions"
+docker compose exec db psql -U dataflow -d dataflow -c "\d reclamos_config" | grep notificar
 ```
 
 ---
@@ -573,7 +579,69 @@ return res.send();
 
 ---
 
-## 10. Configuración de producción
+## 10. Configuración de emails SMTP (Zimbra)
+
+Dataflow puede enviar emails reales al funcionario cada vez que cambia el estado de un reclamo. Usa el servidor de correo Zimbra de Círculo Católico vía SMTP estándar.
+
+### Activar emails
+
+Agregar al `backend/.env`:
+
+```env
+SMTP_HOST=mail.circulocatolico.com.uy
+SMTP_PORT=587
+SMTP_USER=dataflow@circulocatolico.com.uy
+SMTP_PASS=clave-del-usuario-de-correo
+```
+
+Si `SMTP_HOST` no está definido, los emails quedan desactivados y la app funciona igual. No rompe nada.
+
+### Cómo funciona
+
+- El módulo está en `backend/src/mailer.js`
+- Se activa automáticamente al arrancar si encuentra `SMTP_HOST` en el entorno
+- Cada vez que se llama `POST /api/reclamos/:id/estado`, si el reclamo tiene `emailFuncionario` y SMTP está configurado, se envía un email HTML al funcionario con:
+  - Estado anterior → nuevo estado (con color por estado)
+  - Nota del operador (si se escribió)
+  - Logo corporativo (si está cargado en configuración)
+
+### Toggle "Notificar al liquidar"
+
+En **Configuración de Reclamos** hay un toggle para controlar el email del estado `Liquidado`:
+
+| Toggle | Comportamiento |
+|--------|---------------|
+| Activado (default) | Se envía email en **todos** los cambios de estado, incluyendo Liquidado |
+| Desactivado | Se envía email en todos los estados **excepto** Liquidado |
+
+Este toggle se guarda en `reclamos_config.notificar_liquidado` (columna agregada en migración 08).
+
+### Reconstruir la imagen Docker después de activar SMTP
+
+Cuando se agregan o cambian variables de entorno, hay que reconstruir la imagen:
+
+```bash
+# Desde la raíz del proyecto
+docker compose build --no-cache backend
+docker compose up -d backend
+```
+
+### Probar SMTP sin frontend
+
+```bash
+docker compose exec backend node -e "
+  const {sendMail} = require('./src/mailer');
+  sendMail({
+    to: 'test@circulocatolico.com.uy',
+    subject: 'Test Dataflow',
+    html: '<p>Email de prueba desde Dataflow</p>'
+  }).then(() => console.log('OK'));
+"
+```
+
+---
+
+## 11. Configuración de producción (variables de entorno)
 
 ### Variables de entorno (`backend/.env`)
 
@@ -583,6 +651,12 @@ SESSION_SECRET=cadena-aleatoria-de-al-menos-32-caracteres
 UPLOAD_DIR=/var/dataflow/uploads
 PORT=3001
 NODE_ENV=production
+
+# SMTP / Email (Zimbra)
+SMTP_HOST=mail.circulocatolico.com.uy
+SMTP_PORT=587
+SMTP_USER=dataflow@circulocatolico.com.uy
+SMTP_PASS=clave-del-usuario-de-correo
 
 # LDAP/AD (cuando se conecte al AD corporativo)
 LDAP_URL=ldap://ad.circulocatolico.com.uy
@@ -622,11 +696,11 @@ cookie: {
 
 ---
 
-## 11. Checklist para la primera versión en producción
+## 12. Checklist para la primera versión en producción
 
 ### Infraestructura
 - [ ] Servidor con Node.js 20+ y PostgreSQL 15+
-- [ ] Ejecutar `01_schema.sql`, `02_seed.sql` y migraciones 03–07 en orden
+- [ ] Ejecutar `01_schema.sql`, `02_seed.sql` y migraciones 03–08 en orden
 - [ ] Carpeta `/var/dataflow/uploads/` con permisos de escritura para el proceso Node
 - [ ] nginx configurado como proxy reverso (puerto 443, HTTPS)
 - [ ] Certificado SSL instalado
@@ -663,7 +737,7 @@ cookie: {
 
 ---
 
-## 12. Migración de datos existentes (localStorage → base de datos)
+## 13. Migración de datos existentes (localStorage → base de datos)
 
 Si hay datos cargados en localStorage del navegador que se quieren migrar:
 
@@ -677,7 +751,7 @@ O bien: la primera vez que el usuario use la app con backend, los datos de local
 
 ---
 
-## 13. Notas sobre cambios futuros al frontend
+## 14. Notas sobre cambios futuros al frontend
 
 Cuando se implemente una nueva feature que necesite datos del backend:
 
