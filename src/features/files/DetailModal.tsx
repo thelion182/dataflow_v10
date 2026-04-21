@@ -210,7 +210,7 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                       <table className="w-full text-xs">
                                         <thead>
                                           <tr className="border-b border-orange-800/20 text-[10px] text-orange-400/60 uppercase tracking-wide">
-                                            <th className="text-left px-2.5 py-1.5 font-medium w-14">Nº</th>
+                                            <th className="text-left px-2.5 py-1.5 font-medium w-20">Nro Func.</th>
                                             <th className="text-left px-2.5 py-1.5 font-medium">Nombre / Cargo</th>
                                             <th className="text-left px-2.5 py-1.5 font-medium w-20">Acción</th>
                                             <th className="text-left px-2.5 py-1.5 font-medium">Detalle</th>
@@ -224,7 +224,7 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                         <tbody>
                                           {rows.map((row: any) => {
                                             const accionColor = row.accion === 'alta' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-700/30' : row.accion === 'baja' ? 'bg-red-500/15 text-red-300 border-red-700/30' : 'bg-sky-500/15 text-sky-300 border-sky-700/30';
-                                            const accionLabel = row.accion === 'alta' ? 'Alta' : row.accion === 'baja' ? 'Baja' : 'Modificar';
+                                            const accionLabel = row.accion === 'alta' ? 'Alta Novedad' : row.accion === 'baja' ? 'Baja Novedad' : 'Modificar Novedad';
                                             let detalle: string[] = [];
                                             if (row.accion === 'modificar') {
                                               if (row.modCampo) detalle.push(row.modCampo);
