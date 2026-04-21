@@ -244,22 +244,22 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
       return;
     }
   
-    // Reglas de negocio tuyas: "una vez descargado por liquidación el mismo archivo no se puede descargar"
-    // Implementamos esa restricción así:
-    // Consideramos "ya descargado" si ESTE archivo tiene alguna marca de descarga para ESTA liquidación.
-    // Miramos en fOriginal.downloadNumbersByUser[*][selectedPeriodId].
-    const yaDescargadoEnEstaLiquidacion = (() => {
+    // Sueldos: bloquear re-descarga del mismo archivo en la misma liquidación
+    // Se consultan tres fuentes para cubrir tanto modo localStorage como API:
+    //   1. downloadNumbersByUser en el objeto del archivo (modo localStorage / sesión actual)
+    //   2. downloadedFiles state (cargado async desde backend al login)
+    //   3. downloadLogs en memoria (fuente más confiable en modo API)
+    if (meRole === 'sueldos') {
       const mapByUser = fOriginal.downloadNumbersByUser || {};
-      // si CUALQUIER usuario tiene número asignado para este período, lo consideramos descargado
-      return Object.values(mapByUser).some((perObj: any) => {
-        if (!perObj) return false;
-        return perObj[selectedPeriodId] != null;
-      });
-    })();
-  
-    if (yaDescargadoEnEstaLiquidacion) {
-      alert("Este archivo ya fue descargado en esta liquidación. No se puede volver a descargar.");
-      return;
+      const enFiles = (mapByUser[me.id] || {})[selectedPeriodId] != null;
+      const enState = (downloadedFiles[selectedPeriodId] || {})[fOriginal.id]?.usuarioId === me.id;
+      const enLogs  = downloadLogs.some((l: any) =>
+        l.usuarioId === me.id && l.archivoId === fOriginal.id && l.liquidacionId === selectedPeriodId
+      );
+      if (enFiles || enState || enLogs) {
+        alert("Ya descargaste este archivo en esta liquidación. No podés volver a descargarlo.");
+        return;
+      }
     }
   
     // Caso general: nombre final del archivo que va a bajar el browser
@@ -418,14 +418,15 @@ async function downloadSelectedAsZip() {
     return await res.blob();
   }
 
-  // Mismo criterio que en doDownload:
-  // ¿Este archivo ya fue descargado en esta liquidación?
+  // Para Sueldos: ¿este usuario ya descargó este archivo en esta liquidación?
   function yaDescargadoEnEstaLiquidacion(f: any): boolean {
+    if (meRole !== 'sueldos') return false;
     const mapByUser = f.downloadNumbersByUser || {};
-    return Object.values(mapByUser).some((perObj: any) => {
-      if (!perObj) return false;
-      return perObj[selectedPeriodId] != null;
-    });
+    if ((mapByUser[me.id] || {})[selectedPeriodId] != null) return true;
+    if ((downloadedFiles[selectedPeriodId] || {})[f.id]?.usuarioId === me.id) return true;
+    return downloadLogs.some((l: any) =>
+      l.usuarioId === me.id && l.archivoId === f.id && l.liquidacionId === selectedPeriodId
+    );
   }
 
   // Filtramos archivos válidos (existen, tienen blob o API, y no están ya descargados)
