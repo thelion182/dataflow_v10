@@ -169,6 +169,7 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                             const rows = th.rows || [];
                             const allProcessed = rows.length > 0 && rows.every((r: any) => r.processed);
                             const allAnswered  = rows.length > 0 && rows.every((r: any) => r.answered);
+                            const accionTypes = [...new Set(rows.map((r: any) => r.accion === 'alta' ? 'Alta Novedad' : r.accion === 'baja' ? 'Baja Novedad' : 'Modificar Novedad'))].join(' · ');
                             const isOpen = expandedArreglos.has(th.id);
                             const statusBadge = esEliminado
                               ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-500 border border-neutral-700">anulado</span>
@@ -187,7 +188,7 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                   disabled={esEliminado}
                                 >
                                   <span className="text-orange-400 text-sm">🔧</span>
-                                  <span className="font-medium text-orange-300 text-sm">Arreglo solicitado</span>
+                                  <span className="font-medium text-orange-300 text-sm">{accionTypes || 'Arreglo solicitado'}</span>
                                   <span className="text-[11px] text-neutral-500">{rows.length} fila{rows.length !== 1 ? 's' : ''}</span>
                                   {statusBadge}
                                   <span className="text-[11px] text-neutral-600 ml-1">{formatDate(th.createdAt)} · {userNameOr(th.createdByUsername || th.byUsername)}</span>
@@ -230,7 +231,7 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                               if (row.modCampo) detalle.push(row.modCampo);
                                               if (row.modDe || row.modA) detalle.push(`${row.modDe || '?'} → ${row.modA || '?'}`);
                                             } else {
-                                              if (row.codigo) detalle.push(row.codigo);
+                                              if (row.codigo) detalle.push(`Código: ${row.codigo}`);
                                               if (row.codDesc) detalle.push(row.codDesc);
                                               if (row.dhc) detalle.push(`D/H/C: ${row.dhc}`);
                                               if (row.actividad) detalle.push(`Act: ${row.actividad}`);
