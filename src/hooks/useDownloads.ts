@@ -534,6 +534,7 @@ async function downloadSelectedAsZip() {
   // Mapa: fileId → { fClone, finalName, numeroAsignado, ts }
   // Guardamos todo SIN tocar estado — el estado se actualiza atómicamente después del loop
   const fileUpdates = new Map();
+  const zipRecords: any[] = [];
 
   // --- Recorremos archivos: calcular números, nombres y recolectar blobs ---
   for (const f of filesToProcess) {
