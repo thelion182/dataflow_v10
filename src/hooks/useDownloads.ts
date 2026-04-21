@@ -531,14 +531,16 @@ async function downloadSelectedAsZip() {
     }
   }
 
-  const zipRecords: any[] = [];
-  let added = 0;
+  // Mapa: fileId → { fClone, finalName, numeroAsignado, ts }
+  // Guardamos todo SIN tocar estado — el estado se actualiza atómicamente después del loop
+  const fileUpdates = new Map();
 
-  // --- Recorremos archivos y los vamos metiendo al ZIP ---
+  // --- Recorremos archivos: calcular números, nombres y recolectar blobs ---
   for (const f of filesToProcess) {
     const originalName = f.name || "archivo";
     let finalName = originalName;
     let numeroAsignado: number | null = null;
+    let fClone: any = null;
 
     if (isSueldos && usedNumbers && subRanges && freshMe) {
       const { nonTxtStart, nonTxtEnd, txtStart, txtEnd } = subRanges;
@@ -550,8 +552,7 @@ async function downloadSelectedAsZip() {
         numeroAsignado = findNextFreeNumberInRange(usedNumbers, txtStart, txtEnd);
         if (numeroAsignado == null) {
           alert(
-            `Ya usaste todos tus números para archivos TXT en esta liquidación ` +
-            `(${txtStart} a ${txtEnd}).`
+            `Ya usaste todos tus números para archivos TXT en esta liquidación (${txtStart} a ${txtEnd}).`
           );
           return;
         }
@@ -559,71 +560,80 @@ async function downloadSelectedAsZip() {
         numeroAsignado = findNextFreeNumberInRange(usedNumbers, nonTxtStart, nonTxtEnd);
         if (numeroAsignado == null) {
           alert(
-            `Ya usaste todos tus números para archivos no TXT en esta liquidación ` +
-            `(${nonTxtStart} a ${nonTxtEnd}).`
+            `Ya usaste todos tus números para archivos no TXT en esta liquidación (${nonTxtStart} a ${nonTxtEnd}).`
           );
           return;
         }
       }
 
-      // Marcamos el número como usado
       usedNumbers.add(numeroAsignado);
 
-      // Actualizamos estructura de contadores para que el admin vea el "último usado"
       const currentStored = dc[selectedPeriodId][freshMe.id];
       if (typeof currentStored !== "number" || currentStored < numeroAsignado) {
         dc[selectedPeriodId][freshMe.id] = numeroAsignado;
       }
 
-      // Formato final: "<numero> <NombreOriginal>.ext"
       const lastDot = originalName.lastIndexOf(".");
       let baseName = originalName;
       let ext = "";
       if (lastDot !== -1) {
         baseName = originalName.slice(0, lastDot);
-        ext = originalName.slice(lastDot); // incluye el "."
+        ext = originalName.slice(lastDot);
       }
       finalName = `${numeroAsignado} ${baseName}${ext}`;
 
-      // Marca de auditoría en el archivo
-      const fClone = sclone(f);
-      if (!fClone.downloadNumbersByUser) {
-        fClone.downloadNumbersByUser = {};
-      }
-      if (!fClone.downloadNumbersByUser[freshMe.id]) {
-        fClone.downloadNumbersByUser[freshMe.id] = {};
-      }
+      fClone = sclone(f);
+      if (!fClone.downloadNumbersByUser) fClone.downloadNumbersByUser = {};
+      if (!fClone.downloadNumbersByUser[freshMe.id]) fClone.downloadNumbersByUser[freshMe.id] = {};
       fClone.downloadNumbersByUser[freshMe.id][selectedPeriodId] = numeroAsignado;
       fClone.downloadedAt = nowISO();
 
-      updateFile(f.id, () => fClone);
-
-      if (myPerms.actions.markDownloaded) {
-        markDownloaded(f.id);
-      }
-
-      // Acumulamos para registrar en batch al final (evita publishEvent por archivo)
+      fileUpdates.set(f.id, { fClone, finalName, numeroAsignado, ts: nowISO() });
       zipRecords.push({ fileObj: fClone, numeroAsignado, ts: nowISO() });
-    } else {
-      // Rol que NO es sueldos:
-      // nombre original y sólo marcamos descargado si corresponde
-      if (myPerms.actions.markDownloaded) {
-        markDownloaded(f.id);
-      }
     }
 
-    // Archivos "Sin novedades" no tienen binario — no se agregan al ZIP
+    // Archivos "Sin novedades" no tienen binario
     if (f.noNews) { added++; continue; }
 
-    // Añadimos el archivo (con el nombre ya decidido) al ZIP
+    // Fetch del blob — NOTA: esto puede disparar SSE file:downloaded que hace refreshFiles.
+    // Por eso NO tocamos el estado ANTES de este await — lo hacemos todo DESPUÉS del loop.
     const fileUrl = USE_API
       ? `${API_URL}/files/${f.id}/download`
       : f.blobUrl;
     try {
       const blob = await blobFromObjectURL(fileUrl);
       zip.file(finalName, blob);
-    } catch { /* si falla el binario, salteamos este archivo */ }
+    } catch { /* si falla el binario, salteamos */ }
     added++;
+  }
+
+  // Dar tiempo a que los SSE file:downloaded (disparados por los fetchs de arriba) se resuelvan
+  // antes de aplicar nuestras actualizaciones de estado.
+  await new Promise(r => setTimeout(r, 200));
+
+  // Actualización atómica de estado: UN SOLO setFiles para todos los archivos a la vez.
+  // Al usar updater funcional, opera sobre el estado MÁS RECIENTE (post-SSE-refresh).
+  if (fileUpdates.size > 0) {
+    setFiles((prev: any[]) => prev.map((f: any) => {
+      const upd = fileUpdates.get(f.id);
+      if (!upd) return f;
+      return addHistoryEntry(
+        {
+          ...f,                                        // base = estado actual (post-SSE)
+          status: "descargado",
+          downloadedAt: upd.fClone.downloadedAt,
+          downloadNumbersByUser: upd.fClone.downloadNumbersByUser,
+        },
+        `Descargado por ${me?.username} con nro ${upd.numeroAsignado}`
+      );
+    }));
+  }
+
+  // Para roles sin numeración (no sueldos): markDownloaded standard
+  if (!isSueldos && myPerms.actions.markDownloaded) {
+    for (const f of filesToProcess) {
+      markDownloaded(f.id);
+    }
   }
 
   // Registrar descargas en batch — un solo setDownloadedFiles + setDownloadLogs sin publishEvent
