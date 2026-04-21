@@ -764,5 +764,16 @@ Este patrón garantiza que el sistema siempre funcione en modo sin backend (úti
 
 ---
 
+## 15. Changelog de mejoras recientes (v10)
+
+### Sesión 2026-04-20
+- **DetailModal — trazabilidad de arreglos:** Los arreglos solicitados en el modal de detalle de archivo ahora se muestran como botones naranjas colapsables. Al expandirlos se ve la tabla completa de filas con acciones individuales de procesamiento (`✓ Procesar` por fila). Columna renombrada a "Nro Func." y acciones muestran "Alta Novedad / Baja Novedad / Modificar Novedad".
+- **Filtro por subidor de archivo:** corregido mismatch de nombres de campo entre backend (`uploaderId`/`uploaderName`) y frontend (`byUserId`/`byUsername`). Se normaliza en los 4 paths de carga de `useFiles.ts`.
+- **ProcesarDudasModal:** arreglos ahora aparecen correctamente (condición de filtro era tipo-específica incorrecta). Pestaña "Todos" agregada como default.
+- **Notificaciones SSE para arreglos:** cuando se responde un arreglo se notifica "Arreglo respondido" (no "Duda respondida"). El backend detecta `answerTipo` comparando conteo de `answered` antes/después del PATCH.
+- **UserAdminModal:** agregados filtros por rol y por estado activo/inactivo.
+
+---
+
 *Ante cualquier duda sobre la arquitectura del frontend, consultar a Leonel Figuera (RRHH).*  
 *Repositorio v10: https://github.com/thelion182/dataflow_v10*
