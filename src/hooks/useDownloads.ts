@@ -531,6 +531,7 @@ async function downloadSelectedAsZip() {
     }
   }
 
+  const zipRecords: any[] = [];
   let added = 0;
 
   // --- Recorremos archivos y los vamos metiendo al ZIP ---
@@ -601,11 +602,8 @@ async function downloadSelectedAsZip() {
         markDownloaded(f.id);
       }
 
-      // También registramos la descarga en las estructuras auxiliares
-      registrarDescarga({
-        fileObj: fClone,
-        numeroAsignado,
-      });
+      // Acumulamos para registrar en batch al final (evita publishEvent por archivo)
+      zipRecords.push({ fileObj: fClone, numeroAsignado, ts: nowISO() });
     } else {
       // Rol que NO es sueldos:
       // nombre original y sólo marcamos descargado si corresponde
@@ -626,6 +624,32 @@ async function downloadSelectedAsZip() {
       zip.file(finalName, blob);
     } catch { /* si falla el binario, salteamos este archivo */ }
     added++;
+  }
+
+  // Registrar descargas en batch — un solo setDownloadedFiles + setDownloadLogs sin publishEvent
+  // Esto evita refreshFiles por archivo que sobreescribía el estado a mitad del loop
+  if (isSueldos && zipRecords.length > 0) {
+    setDownloadedFiles((prev: any) => {
+      const next = { ...prev };
+      for (const { fileObj, numeroAsignado, ts } of zipRecords) {
+        const pId = fileObj.periodId;
+        if (!next[pId]) next[pId] = {};
+        next[pId] = { ...next[pId], [fileObj.id]: { usuarioId: me?.id, numeroAsignado, timestamp: ts } };
+      }
+      return next;
+    });
+    setDownloadLogs((prev: any) => [
+      ...zipRecords.map(({ fileObj, numeroAsignado, ts }) => ({
+        usuarioId: me?.id,
+        usuarioNombre: me?.username,
+        liquidacionId: fileObj.periodId,
+        numeroAsignado,
+        archivoId: fileObj.id,
+        archivoNombreOriginal: fileObj.name,
+        timestamp: ts,
+      })).reverse(),
+      ...prev,
+    ]);
   }
 
   // Persistimos contadores de Sueldos: actualizar estado (el useEffect guarda en backend)
