@@ -1,10 +1,18 @@
 // @ts-nocheck
-import React from "react";
+import React, { useState } from "react";
 import AutoGrowTextarea from "../../components/AutoGrowTextarea";
 import { prettyBytes } from "../../lib/bytes";
 import { formatDate } from "../../lib/time";
 import { typeBadge, userNameOr } from "../shared/uiHelpers";
 export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelected, setSelectedThreadId, selectedThreadId, periodNameById, prettyBytes, formatDate, userNameOr, meRole, me, setNote, openReplyDialog, addRowToThread, addRowInputs, setAddRowInputs, blankAddRow, markObservationProcessed, deleteThread, adjustReplyInputs, setAdjustReplyInputs, answerAdjust, answerAdjustThread, replyInputs, setReplyInputs, answerObservation }: any) {
+  const [expandedArreglos, setExpandedArreglos] = useState<Set<string>>(new Set());
+  function toggleArreglo(id: string) {
+    setExpandedArreglos(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
   return (
     <>
       {/* MODAL: Detalle */}
@@ -155,8 +163,156 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
   .map((th: any) => {
     const esEliminado = !!th?.deleted;
     return (
-                        <div
-                          key={th.id}
+                        <div key={th.id}>
+                          {/* ── ARREGLO: botón colapsable ── */}
+                          {th.tipo === "arreglo" ? (() => {
+                            const rows = th.rows || [];
+                            const allProcessed = rows.length > 0 && rows.every((r: any) => r.processed);
+                            const allAnswered  = rows.length > 0 && rows.every((r: any) => r.answered);
+                            const isOpen = expandedArreglos.has(th.id);
+                            const statusBadge = esEliminado
+                              ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-500 border border-neutral-700">anulado</span>
+                              : allProcessed
+                              ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 border border-emerald-700/40 text-emerald-300">✓ procesado</span>
+                              : allAnswered
+                              ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-900/50 border border-sky-700/40 text-sky-300">respondido · pend. procesar</span>
+                              : <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 border border-amber-700/40 text-amber-300">pendiente</span>;
+                            return (
+                              <div className={`rounded-xl border transition-all ${esEliminado ? 'border-neutral-800/40 opacity-50' : isOpen ? 'border-orange-700/50 bg-orange-950/10' : 'border-orange-800/30 bg-orange-950/5'}`}>
+                                {/* Cabecera — siempre visible */}
+                                <button
+                                  type="button"
+                                  onClick={() => !esEliminado && toggleArreglo(th.id)}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
+                                  disabled={esEliminado}
+                                >
+                                  <span className="text-orange-400 text-sm">🔧</span>
+                                  <span className="font-medium text-orange-300 text-sm">Arreglo solicitado</span>
+                                  <span className="text-[11px] text-neutral-500">{rows.length} fila{rows.length !== 1 ? 's' : ''}</span>
+                                  {statusBadge}
+                                  <span className="text-[11px] text-neutral-600 ml-1">{formatDate(th.createdAt)} · {userNameOr(th.createdByUsername || th.byUsername)}</span>
+                                  {esEliminado && <span className="text-[10px] text-neutral-600 ml-1">Anulado por {th.deletedByUsername || 'admin'}</span>}
+                                  <span className="ml-auto text-neutral-500 text-xs">{isOpen ? '▲ Cerrar' : '▼ Ver detalle'}</span>
+                                  {meRole === "admin" && !esEliminado && (
+                                    <span
+                                      role="button"
+                                      onClick={e => { e.stopPropagation(); deleteThread(selectedFile.id, th.id); }}
+                                      className="ml-1 px-2 py-0.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-[10px] text-neutral-400"
+                                    >Eliminar</span>
+                                  )}
+                                </button>
+
+                                {/* Detalle expandido */}
+                                {isOpen && (
+                                  <div className="px-3 pb-3 space-y-2 border-t border-orange-800/20">
+                                    {/* Tabla de filas */}
+                                    <div className="rounded-lg border border-orange-800/30 bg-orange-950/15 overflow-x-auto mt-2">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="border-b border-orange-800/20 text-[10px] text-orange-400/60 uppercase tracking-wide">
+                                            <th className="text-left px-2.5 py-1.5 font-medium w-14">Nº</th>
+                                            <th className="text-left px-2.5 py-1.5 font-medium">Nombre / Cargo</th>
+                                            <th className="text-left px-2.5 py-1.5 font-medium w-20">Acción</th>
+                                            <th className="text-left px-2.5 py-1.5 font-medium">Detalle</th>
+                                            <th className="text-left px-2.5 py-1.5 font-medium w-28">CC</th>
+                                            <th className="text-left px-2.5 py-1.5 font-medium w-28">Estado</th>
+                                            {(meRole === "sueldos" || meRole === "admin") && (
+                                              <th className="text-left px-2.5 py-1.5 font-medium w-24">Acción</th>
+                                            )}
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {rows.map((row: any) => {
+                                            const accionColor = row.accion === 'alta' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-700/30' : row.accion === 'baja' ? 'bg-red-500/15 text-red-300 border-red-700/30' : 'bg-sky-500/15 text-sky-300 border-sky-700/30';
+                                            const accionLabel = row.accion === 'alta' ? 'Alta' : row.accion === 'baja' ? 'Baja' : 'Modificar';
+                                            let detalle: string[] = [];
+                                            if (row.accion === 'modificar') {
+                                              if (row.modCampo) detalle.push(row.modCampo);
+                                              if (row.modDe || row.modA) detalle.push(`${row.modDe || '?'} → ${row.modA || '?'}`);
+                                            } else {
+                                              if (row.codigo) detalle.push(row.codigo);
+                                              if (row.codDesc) detalle.push(row.codDesc);
+                                              if (row.dhc) detalle.push(`D/H/C: ${row.dhc}`);
+                                              if (row.actividad) detalle.push(`Act: ${row.actividad}`);
+                                            }
+                                            if (row.nota) detalle.push(`Nota: ${row.nota}`);
+                                            return (
+                                              <tr key={row.id} className="border-b border-orange-800/10 last:border-0 hover:bg-orange-900/10">
+                                                <td className="px-2.5 py-2 font-mono text-neutral-300 align-top">{row.nro || '—'}</td>
+                                                <td className="px-2.5 py-2 align-top">
+                                                  <div className="text-neutral-200 font-medium">{row.nombre || '—'}</div>
+                                                  {row.cargo && <div className="text-[10px] text-neutral-500 mt-0.5">{row.cargo}</div>}
+                                                </td>
+                                                <td className="px-2.5 py-2 align-top">
+                                                  <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-medium ${accionColor}`}>{accionLabel}</span>
+                                                </td>
+                                                <td className="px-2.5 py-2 align-top text-neutral-400 text-[11px] leading-relaxed">
+                                                  {detalle.length > 0 ? detalle.map((d, i) => <span key={i} className="block">{d}</span>) : '—'}
+                                                </td>
+                                                <td className="px-2.5 py-2 align-top text-neutral-400">{row.cc || '—'}</td>
+                                                <td className="px-2.5 py-2 align-top">
+                                                  {row.processed
+                                                    ? <span className="text-[10px] text-emerald-400">✓ procesado<br/><span className="text-neutral-600">{userNameOr(row.processedByUsername)}</span></span>
+                                                    : row.answered
+                                                    ? <span className="text-[10px] text-sky-400">respondido<br/><span className="text-neutral-600">{userNameOr(row.answeredByUsername)}</span></span>
+                                                    : <span className="text-[10px] text-amber-400">pendiente</span>
+                                                  }
+                                                </td>
+                                                {(meRole === "sueldos" || meRole === "admin") && (
+                                                  <td className="px-2.5 py-2 align-top">
+                                                    {!row.processed && (
+                                                      <button
+                                                        onClick={() => markObservationProcessed(selectedFile.id, th.id, row.id)}
+                                                        className="px-2 py-1 rounded-lg bg-emerald-800/50 hover:bg-emerald-700/60 border border-emerald-700/40 text-emerald-300 text-[10px] font-medium"
+                                                      >
+                                                        ✓ Procesar
+                                                      </button>
+                                                    )}
+                                                  </td>
+                                                )}
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+
+                                    {/* Nota de Sueldos existente */}
+                                    {th.answerText && (
+                                      <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border border-emerald-800/30 bg-emerald-950/15">
+                                        <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wide mt-0.5 shrink-0">Nota Sueldos</span>
+                                        <span className="text-xs text-neutral-300 flex-1">{th.answerText}</span>
+                                        <span className="text-[10px] text-neutral-600 shrink-0">{userNameOr(th.answeredByUsername)} · {formatDate(th.answeredAt)}</span>
+                                      </div>
+                                    )}
+
+                                    {/* Confirmar + nota opcional (Sueldos) */}
+                                    {!th.answered && (meRole === "sueldos" || meRole === "admin") && (
+                                      <div className="flex items-end gap-2 pt-1">
+                                        <AutoGrowTextarea
+                                          value={(adjustReplyInputs[th.id] || "")}
+                                          onChange={(v) => setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: v }))}
+                                          placeholder="Nota de Sueldos (opcional)…"
+                                          className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 outline-none text-sm min-h-[38px]"
+                                        />
+                                        <button
+                                          onClick={() => {
+                                            answerAdjustThread(selectedFile.id, th.id, adjustReplyInputs[th.id] || "");
+                                            setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: "" }));
+                                          }}
+                                          className="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm text-white shrink-0"
+                                        >
+                                          Confirmar respuesta
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })() : (
+                          /* ── DUDA: card normal ── */
+                          <div
                           className={`rounded-xl border p-3 transition-all ${
                             esEliminado
                               ? 'border-neutral-800/40 bg-neutral-900/20 opacity-45'
@@ -166,15 +322,9 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="text-sm flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className={`font-medium ${esEliminado ? 'line-through text-neutral-500' : th.tipo === 'arreglo' ? 'text-orange-300' : 'text-neutral-200'}`}>
-                                {th.tipo === "arreglo" ? "🔧 Arreglo" : "💬 Duda"}
+                              <span className={`font-medium ${esEliminado ? 'line-through text-neutral-500' : 'text-neutral-200'}`}>
+                                💬 Duda
                               </span>
-                              {th.tipo === "arreglo" && !esEliminado && (() => {
-                                const rows = th.rows || [];
-                                if (rows.every((r: any) => r.processed)) return <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/50 border border-emerald-700/40 text-emerald-300">procesado</span>;
-                                if (rows.length > 0 && rows.every((r: any) => r.answered)) return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-900/50 border border-sky-700/40 text-sky-300">pend. procesar</span>;
-                                return <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 border border-amber-700/40 text-amber-300">pendiente</span>;
-                              })()}
                               <span className="text-neutral-500 text-xs">{formatDate(th.createdAt)} · {userNameOr(th.createdByUsername || th.byUsername)}</span>
                               {esEliminado && (
                                 <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 border border-neutral-700 rounded px-1">
@@ -182,49 +332,20 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                                 </span>
                               )}
                             </div>
-
-                            {!esEliminado && th.tipo !== "arreglo" ? (
+                            {!esEliminado && (
                               <div className="flex items-center gap-2">
                                 {meRole === "sueldos" && (
-                                  <button
-                                  onClick={() => {
-                                    setSelectedThreadId(th.id);
-                                    setAddRowInputs((s: any) => ({
-                                      ...s,
-                                      [th.id]: s?.[th.id] || blankAddRow(),
-                                    }));
-                                  }}
-                                  className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs"
-                                >
-                                  + Agregar fila
-                                </button>
+                                  <button onClick={() => { setSelectedThreadId(th.id); setAddRowInputs((s: any) => ({ ...s, [th.id]: s?.[th.id] || blankAddRow() })); }} className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs">
+                                    + Agregar fila
+                                  </button>
                                 )}
-
-{meRole === "admin" && (
-  <button
-    onClick={() => deleteThread(selectedFile.id, th.id)}
-    className="px-2 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs text-neutral-300"
-    title="Solo Administrador"
-  >
-    Eliminar hilo
-  </button>
-)}
-
-                              </div>
-                            ) : !esEliminado ? (
-                              <div className="flex items-center gap-2">
                                 {meRole === "admin" && (
-  <button
-    onClick={() => deleteThread(selectedFile.id, th.id)}
-    className="px-2 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs text-neutral-300"
-    title="Solo Administrador"
-  >
-    Eliminar arreglo
-  </button>
-)}
-
+                                  <button onClick={() => deleteThread(selectedFile.id, th.id)} className="px-2 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs text-neutral-300">
+                                    Eliminar hilo
+                                  </button>
+                                )}
                               </div>
-                            ) : null}
+                            )}
                           </div>
 
                           {th.tipo !== "arreglo" && (
@@ -383,98 +504,7 @@ export function DetailModal({ detailOpen, setDetailOpen, selectedFile, setSelect
                               )}
                             </div>
                           )}
-
-                          {th.tipo === "arreglo" && (
-                            <div className="mt-2 space-y-2">
-                              {/* Tabla de filas del arreglo */}
-                              {(th.rows || []).length > 0 && (
-                                <div className="rounded-lg border border-orange-800/30 bg-orange-950/15 overflow-x-auto">
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="border-b border-orange-800/20 text-[10px] text-orange-400/60 uppercase tracking-wide">
-                                        <th className="text-left px-2.5 py-1.5 font-medium w-14">Nº</th>
-                                        <th className="text-left px-2.5 py-1.5 font-medium">Nombre / Cargo</th>
-                                        <th className="text-left px-2.5 py-1.5 font-medium w-20">Acción</th>
-                                        <th className="text-left px-2.5 py-1.5 font-medium">Detalle</th>
-                                        <th className="text-left px-2.5 py-1.5 font-medium w-28">CC</th>
-                                        <th className="text-left px-2.5 py-1.5 font-medium w-24">Estado</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {(th.rows || []).map((row: any) => {
-                                        const accionColor = row.accion === 'alta' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-700/30' : row.accion === 'baja' ? 'bg-red-500/15 text-red-300 border-red-700/30' : 'bg-sky-500/15 text-sky-300 border-sky-700/30';
-                                        const accionLabel = row.accion === 'alta' ? 'Alta' : row.accion === 'baja' ? 'Baja' : 'Modificar';
-                                        let detalle: string[] = [];
-                                        if (row.accion === 'modificar') {
-                                          if (row.modCampo) detalle.push(row.modCampo);
-                                          if (row.modDe || row.modA) detalle.push(`${row.modDe || '?'} → ${row.modA || '?'}`);
-                                        } else {
-                                          if (row.codigo) detalle.push(row.codigo);
-                                          if (row.codDesc) detalle.push(row.codDesc);
-                                          if (row.dhc) detalle.push(`D/H/C: ${row.dhc}`);
-                                          if (row.actividad) detalle.push(`Act: ${row.actividad}`);
-                                        }
-                                        if (row.nota) detalle.push(`Nota: ${row.nota}`);
-                                        return (
-                                          <tr key={row.id} className="border-b border-orange-800/10 last:border-0 hover:bg-orange-900/10">
-                                            <td className="px-2.5 py-2 font-mono text-neutral-300 align-top">{row.nro || '—'}</td>
-                                            <td className="px-2.5 py-2 align-top">
-                                              <div className="text-neutral-200 font-medium">{row.nombre || '—'}</div>
-                                              {row.cargo && <div className="text-[10px] text-neutral-500 mt-0.5">{row.cargo}</div>}
-                                            </td>
-                                            <td className="px-2.5 py-2 align-top">
-                                              <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-medium ${accionColor}`}>{accionLabel}</span>
-                                            </td>
-                                            <td className="px-2.5 py-2 align-top text-neutral-400 text-[11px] leading-relaxed">
-                                              {detalle.length > 0 ? detalle.map((d, i) => <span key={i} className="block">{d}</span>) : '—'}
-                                            </td>
-                                            <td className="px-2.5 py-2 align-top text-neutral-400">{row.cc || '—'}</td>
-                                            <td className="px-2.5 py-2 align-top">
-                                              {row.processed
-                                                ? <span className="text-[10px] text-emerald-400">✓ procesado<br/><span className="text-neutral-600">{userNameOr(row.processedByUsername)}</span></span>
-                                                : row.answered
-                                                ? <span className="text-[10px] text-sky-400">respondido<br/><span className="text-neutral-600">{userNameOr(row.answeredByUsername)}</span></span>
-                                                : <span className="text-[10px] text-amber-400">pendiente</span>
-                                              }
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-
-                              {/* Nota de Sueldos (si existe) */}
-                              {th.answerText && (
-                                <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border border-emerald-800/30 bg-emerald-950/15">
-                                  <span className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wide mt-0.5 shrink-0">Nota Sueldos</span>
-                                  <span className="text-xs text-neutral-300 flex-1">{th.answerText}</span>
-                                  <span className="text-[10px] text-neutral-600 shrink-0">{userNameOr(th.answeredByUsername)} · {formatDate(th.answeredAt)}</span>
-                                </div>
-                              )}
-
-                              {/* Caja de nota opcional para Sueldos */}
-                              {!th.answered && (meRole === "sueldos" || meRole === "admin") && (
-                                <div className="flex items-end gap-2">
-                                  <AutoGrowTextarea
-                                    value={(adjustReplyInputs[th.id] || "")}
-                                    onChange={(v) => setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: v }))}
-                                    placeholder="Nota de Sueldos (opcional)…"
-                                    className="flex-1 px-3 py-2 rounded-xl bg-neutral-800 outline-none text-sm min-h-[38px]"
-                                  />
-                                  <button
-                                    onClick={() => {
-                                      answerAdjustThread(selectedFile.id, th.id, adjustReplyInputs[th.id] || "");
-                                      setAdjustReplyInputs((s: any) => ({ ...s, [th.id]: "" }));
-                                    }}
-                                    className="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm text-white shrink-0"
-                                  >
-                                    Confirmar
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                        </div>
                           )}
                         </div>
                       );
